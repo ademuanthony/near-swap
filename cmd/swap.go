@@ -15,6 +15,7 @@ import (
 
 	"near-swap/config"
 	"near-swap/pkg/client"
+	"near-swap/pkg/deposit"
 	"near-swap/pkg/parser"
 	"near-swap/pkg/types"
 )
@@ -25,6 +26,7 @@ var (
 	recipientAddr string
 	refundAddr    string
 	noConfirm     bool
+	autoDeposit   bool
 )
 
 var swapCmd = &cobra.Command{
@@ -44,7 +46,10 @@ Examples:
   # Same-chain swap
   near-swap swap 0.5 ETH to USDC --from-chain eth --to-chain eth --recipient 0x123... --refund-to 0x123...
 
-  # Skip confirmation
+  # With auto-deposit (Bitcoin example)
+  near-swap swap 0.01 BTC to USDC --from-chain btc --to-chain near --recipient your.near --refund-to <btc-addr> --auto-deposit
+
+  # Skip all confirmations
   near-swap swap 1 SOL to USDC --from-chain sol --to-chain near --recipient your.near --refund-to <sol-addr> --yes`,
 	Args: cobra.MinimumNArgs(1),
 	Run:  runSwap,
@@ -58,6 +63,7 @@ func init() {
 	swapCmd.Flags().StringVar(&recipientAddr, "recipient", "", "Recipient address (REQUIRED - where you'll receive tokens)")
 	swapCmd.Flags().StringVar(&refundAddr, "refund-to", "", "Refund address on source chain (optional - where refunds go if swap fails)")
 	swapCmd.Flags().BoolVarP(&noConfirm, "yes", "y", false, "Skip confirmation prompt")
+	swapCmd.Flags().BoolVar(&autoDeposit, "auto-deposit", false, "Automatically send deposit (requires configuration)")
 }
 
 func runSwap(cmd *cobra.Command, args []string) {
@@ -163,11 +169,79 @@ func runSwap(cmd *cobra.Command, args []string) {
 		displayDepositInstructions(&quoteDetails, swapReq)
 	}
 
+	// Handle auto-deposit if enabled
+	if autoDeposit || cfg.AutoDeposit.Enabled {
+		if err := handleAutoDeposit(cfg, swapReq, &quoteDetails, verbose); err != nil {
+			color.Red("\nAuto-deposit failed: %v", err)
+			color.Yellow("Please send the deposit manually to: %s\n", quoteDetails.GetDepositAddress())
+		}
+	}
+
 	// Monitor swap status (optional, in background)
 	if !jsonOutput {
 		fmt.Println("\nYou can monitor the swap status using:")
 		color.Cyan("  near-swap status %s\n", quoteDetails.GetDepositAddress())
 	}
+}
+
+func handleAutoDeposit(cfg *config.Config, swapReq *types.SwapRequest, quoteDetails *oneclick.Quote, verbose bool) error {
+	depositMgr := deposit.NewManager(cfg.AutoDeposit)
+
+	// Check if auto-deposit is supported for the source chain
+	if !depositMgr.IsEnabledForChain(swapReq.SourceChain) {
+		return fmt.Errorf("auto-deposit not enabled for chain: %s", swapReq.SourceChain)
+	}
+
+	depositAddress := quoteDetails.GetDepositAddress()
+	amount := swapReq.Amount
+
+	color.Yellow("\n🔄 Initiating auto-deposit...\n")
+	fmt.Printf("  Chain:   %s\n", swapReq.SourceChain)
+	fmt.Printf("  Amount:  %s %s\n", amount, swapReq.SourceToken)
+	fmt.Printf("  To:      %s\n", depositAddress)
+
+	// Confirm auto-deposit
+	if !confirmAutoDeposit() {
+		return fmt.Errorf("auto-deposit cancelled by user")
+	}
+
+	// Send the deposit
+	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
+	s.Suffix = " Sending deposit..."
+	s.Start()
+
+	txid, err := depositMgr.SendDeposit(swapReq.SourceChain, depositAddress, amount)
+	s.Stop()
+
+	if err != nil {
+		return err
+	}
+
+	color.Green("\n✓ Deposit sent successfully!")
+	fmt.Printf("  Transaction ID: %s\n", color.CyanString(txid))
+
+	if verbose {
+		fmt.Printf("\nDeposit transaction details:\n")
+		fmt.Printf("  Chain:      %s\n", swapReq.SourceChain)
+		fmt.Printf("  Amount:     %s %s\n", amount, swapReq.SourceToken)
+		fmt.Printf("  To:         %s\n", depositAddress)
+		fmt.Printf("  Tx Hash:    %s\n", txid)
+	}
+
+	return nil
+}
+
+func confirmAutoDeposit() bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("\nProceed with auto-deposit? (y/N): ")
+
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+
+	response = strings.TrimSpace(strings.ToLower(response))
+	return response == "y" || response == "yes"
 }
 
 func displayQuote(quote *oneclick.Quote, swapReq *types.SwapRequest) {

@@ -7,10 +7,33 @@ import (
 	"github.com/spf13/viper"
 )
 
+// BitcoinConfig holds Bitcoin-specific configuration
+type BitcoinConfig struct {
+	Enabled  bool     `mapstructure:"enabled"`
+	CLIPath  string   `mapstructure:"cli_path"`
+	CLIArgs  []string `mapstructure:"cli_args"`
+	Wallet   string   `mapstructure:"wallet"`
+	FeeRate  float64  `mapstructure:"fee_rate"`
+}
+
+// AutoDepositConfig holds auto-deposit configuration
+type AutoDepositConfig struct {
+	Enabled bool          `mapstructure:"enabled"`
+	Bitcoin BitcoinConfig `mapstructure:"bitcoin"`
+}
+
 // Config holds the application configuration
 type Config struct {
-	JWTToken string
-	BaseURL  string
+	JWTToken        string            `mapstructure:"jwt_token"`
+	BaseURL         string            `mapstructure:"base_url"`
+	DefaultRecipient string           `mapstructure:"default_recipient"`
+	DefaultRefundTo  string           `mapstructure:"default_refund_to"`
+	AutoDeposit     AutoDepositConfig `mapstructure:"auto_deposit"`
+	OutputFormat    string            `mapstructure:"output_format"`
+	Verbose         bool              `mapstructure:"verbose"`
+	AutoConfirm     bool              `mapstructure:"auto_confirm"`
+	Timeout         int               `mapstructure:"timeout"`
+	MaxRetries      int               `mapstructure:"max_retries"`
 }
 
 var globalConfig *Config
@@ -24,6 +47,14 @@ func Load() (*Config, error) {
 
 	// Set default values
 	viper.SetDefault("base_url", "https://1click.chaindefuser.com")
+	viper.SetDefault("output_format", "text")
+	viper.SetDefault("verbose", false)
+	viper.SetDefault("auto_confirm", false)
+	viper.SetDefault("timeout", 30)
+	viper.SetDefault("max_retries", 3)
+	viper.SetDefault("auto_deposit.enabled", false)
+	viper.SetDefault("auto_deposit.bitcoin.enabled", false)
+	viper.SetDefault("auto_deposit.bitcoin.cli_path", "bitcoin-cli")
 
 	// Read from environment variables
 	viper.SetEnvPrefix("NEAR_SWAP")
@@ -33,9 +64,9 @@ func Load() (*Config, error) {
 	_ = viper.ReadInConfig()
 
 	// Create config struct
-	cfg := &Config{
-		JWTToken: viper.GetString("jwt_token"),
-		BaseURL:  viper.GetString("base_url"),
+	cfg := &Config{}
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	// Validate JWT token

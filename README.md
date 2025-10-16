@@ -39,15 +39,36 @@ Before using the CLI, you need to set up your JWT token for authentication:
 
 ```bash
 export NEAR_SWAP_JWT_TOKEN="your-jwt-token-here"
+# Or use a .env file
+echo "NEAR_SWAP_JWT_TOKEN=your-jwt-token-here" > .env
 ```
 
 ### Option 2: Configuration File
 
 Create a `.near-swap.yaml` file in your home directory or current directory:
 
+```bash
+# Copy the example config
+cp .near-swap.yaml.example ~/.near-swap.yaml
+
+# Edit with your values
+nano ~/.near-swap.yaml
+```
+
+Example configuration:
+
 ```yaml
 jwt_token: "your-jwt-token-here"
-base_url: "https://1click.chaindefuser.com"  # optional, this is the default
+base_url: "https://1click.chaindefuser.com"
+
+# Optional: Configure auto-deposit for Bitcoin
+auto_deposit:
+  enabled: true
+  bitcoin:
+    enabled: true
+    cli_path: "bitcoin-cli"
+    # wallet: "default"
+    # fee_rate: 1
 ```
 
 ### Obtaining a JWT Token
@@ -128,11 +149,52 @@ near-swap status <deposit-address> --watch --interval 10
 near-swap status <deposit-address> --json
 ```
 
+## Auto-Deposit Feature
+
+The CLI supports automatically sending your deposit for supported blockchains:
+
+### Supported Blockchains
+- **Bitcoin** (BTC) - via `bitcoin-cli`
+- More chains coming soon!
+
+### Setup Auto-Deposit for Bitcoin
+
+1. Ensure `bitcoin-cli` is installed and configured
+2. Enable auto-deposit in your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  bitcoin:
+    enabled: true
+    cli_path: "bitcoin-cli"  # Path to bitcoin-cli (default uses PATH)
+    wallet: "default"        # Optional: wallet name
+    fee_rate: 1              # Optional: fee rate in sat/vB
+```
+
+3. Use the `--auto-deposit` flag:
+
+```bash
+near-swap swap 0.01 BTC to USDC \
+  --from-chain btc \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-btc-address> \
+  --auto-deposit
+```
+
+The CLI will:
+- Verify bitcoin-cli connectivity
+- Check your wallet balance
+- Confirm the deposit with you
+- Send the transaction
+- Display the transaction ID
+
 ## How It Works
 
 1. **Quote Generation**: The CLI fetches a swap quote from the 1Click API
 2. **Deposit Address**: You receive a unique deposit address for your swap
-3. **Token Transfer**: Send your tokens to the deposit address
+3. **Token Transfer**: Send your tokens to the deposit address (manually or auto)
 4. **Solver Network**: The NEAR Intents solver network competes to fulfill your swap
 5. **Execution**: The best solution is executed and tokens are delivered to your destination address
 
@@ -181,22 +243,26 @@ You can monitor the swap status using:
 
 ```
 near-swap/
-├── main.go              # CLI entry point
+├── main.go                      # CLI entry point
+├── .near-swap.yaml.example      # Sample configuration file
 ├── cmd/
-│   ├── root.go         # Root command
-│   ├── swap.go         # Swap command
-│   ├── tokens.go       # List tokens command
-│   └── status.go       # Status check command
+│   ├── root.go                 # Root command
+│   ├── swap.go                 # Swap command with auto-deposit
+│   ├── tokens.go               # List tokens command
+│   └── status.go               # Status check command
 ├── pkg/
 │   ├── client/
-│   │   └── oneclick.go # 1Click API client wrapper
+│   │   └── oneclick.go         # 1Click API client wrapper
 │   ├── parser/
-│   │   └── command.go  # Command parser
+│   │   └── command.go          # Command parser
+│   ├── deposit/
+│   │   ├── deposit.go          # Deposit manager
+│   │   └── bitcoin.go          # Bitcoin auto-deposit
 │   └── types/
-│       └── swap.go     # Type definitions
+│       └── swap.go             # Type definitions
 ├── config/
-│   └── config.go       # Configuration management
-└── go.mod              # Dependencies
+│   └── config.go               # Configuration management
+└── go.mod                      # Dependencies
 ```
 
 ## Dependencies
@@ -215,6 +281,7 @@ Make sure you've set your JWT token either as an environment variable or in a co
 
 ```bash
 export NEAR_SWAP_JWT_TOKEN="your-token-here"
+# Or create .env file with: NEAR_SWAP_JWT_TOKEN=your-token
 ```
 
 ### "Token not found" error
@@ -224,6 +291,34 @@ The token symbol you're trying to swap might not be supported or the name might 
 ```bash
 near-swap list-tokens --symbol <your-token>
 ```
+
+### "refundTo is not valid" error
+
+For cross-chain swaps, the refund address must be valid for the **source chain**:
+
+```bash
+# Correct: refund-to is a Solana address for SOL → USDC swap
+near-swap swap 1 SOL to USDC \
+  --from-chain sol \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <valid-solana-address>
+```
+
+### Auto-deposit errors
+
+**"bitcoin-cli not accessible"**:
+- Ensure `bitcoin-cli` is installed and in your PATH
+- Verify Bitcoin Core is running
+- Check RPC credentials if using authentication
+
+**"insufficient balance"**:
+- Check your Bitcoin wallet balance: `bitcoin-cli getbalance`
+- Ensure you have enough for the amount + transaction fees
+
+**"auto-deposit not enabled"**:
+- Check your `.near-swap.yaml` configuration
+- Ensure `auto_deposit.enabled: true` and `auto_deposit.bitcoin.enabled: true`
 
 ### Swap not completing
 

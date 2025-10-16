@@ -1,0 +1,92 @@
+# NEAR-Swap Configuration File
+# Copy this file to ~/.near-swap.yaml or .near-swap.yaml in your project directory
+# Then edit with your actual values
+
+# ============================================================
+# API Configuration
+# ============================================================
+
+# Your JWT token from NEAR Intents 1Click API
+# Get it from: https://docs.near-intents.org/near-intents/integration/distribution-channels/1click-api
+# Without a token, you'll incur a 0.1% fee on all swaps
+jwt_token: "your-jwt-token-here"
+
+# Base URL for the 1Click API (usually you don't need to change this)
+base_url: "https://1click.chaindefuser.com"
+
+# ============================================================
+# Default Addresses (Optional)
+# ============================================================
+# Set default recipient and refund addresses to avoid typing them each time
+# You can override these with command-line flags
+
+# Default recipient address (where you receive swapped tokens)
+# Example: "your-address.near" or "0x1234..." depending on your preferred chain
+# default_recipient: "your-address.near"
+
+# Default refund address (where refunds go if swap fails)
+# Example: "0x1234..." for Ethereum, "your-address.near" for NEAR
+# default_refund_to: "your-address.near"
+
+# ============================================================
+# Auto-Deposit Configuration
+# ============================================================
+# Configure automatic deposit sending for different blockchains
+# When enabled, the CLI will automatically send your tokens to the deposit address
+
+auto_deposit:
+  # Enable auto-deposit feature (default: false)
+  enabled: false
+
+  # Bitcoin configuration
+  bitcoin:
+    # Enable auto-deposit for Bitcoin (default: false)
+    enabled: false
+
+    # Path to bitcoin-cli (default: uses PATH)
+    cli_path: "bitcoin-cli"
+
+    # Additional bitcoin-cli arguments (optional)
+    # Example: ["-testnet", "-rpcuser=user", "-rpcpassword=pass"]
+    cli_args: []
+
+    # Wallet name (if using named wallets)
+    # wallet: "default"
+
+    # Transaction fee rate in sat/vB (optional, uses default if not set)
+    # fee_rate: 1
+
+  # Ethereum configuration (planned)
+  # ethereum:
+  #   enabled: false
+  #   rpc_url: "http://localhost:8545"
+  #   private_key_file: "~/.ethereum/keystore/key.json"
+
+  # Solana configuration (planned)
+  # solana:
+  #   enabled: false
+  #   keypair_path: "~/.config/solana/id.json"
+  #   rpc_url: "https://api.mainnet-beta.solana.com"
+
+# ============================================================
+# Display Preferences
+# ============================================================
+
+# Default output format: "text" or "json"
+output_format: "text"
+
+# Enable verbose output by default
+verbose: false
+
+# Skip confirmation prompts by default
+auto_confirm: false
+
+# ============================================================
+# Network Settings
+# ============================================================
+
+# Request timeout in seconds
+timeout: 30
+
+# Number of retries for failed API requests
+max_retries: 3

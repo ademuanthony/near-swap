@@ -16,10 +16,23 @@ type BitcoinConfig struct {
 	FeeRate  float64  `mapstructure:"fee_rate"`
 }
 
+// MoneroConfig holds Monero-specific configuration for auto-deposit
+type MoneroConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	Username     string `mapstructure:"username"`
+	Password     string `mapstructure:"password"`
+	AccountIndex uint32 `mapstructure:"account_index"`
+	Priority     uint32 `mapstructure:"priority"`
+	UnlockTime   uint64 `mapstructure:"unlock_time"`
+}
+
 // AutoDepositConfig holds auto-deposit configuration
 type AutoDepositConfig struct {
 	Enabled bool          `mapstructure:"enabled"`
 	Bitcoin BitcoinConfig `mapstructure:"bitcoin"`
+	Monero  MoneroConfig  `mapstructure:"monero"`
 }
 
 // Config holds the application configuration
@@ -55,6 +68,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("auto_deposit.enabled", false)
 	viper.SetDefault("auto_deposit.bitcoin.enabled", false)
 	viper.SetDefault("auto_deposit.bitcoin.cli_path", "bitcoin-cli")
+	viper.SetDefault("auto_deposit.monero.enabled", false)
+	viper.SetDefault("auto_deposit.monero.host", "127.0.0.1")
+	viper.SetDefault("auto_deposit.monero.port", 18082)
+	viper.SetDefault("auto_deposit.monero.account_index", 0)
+	viper.SetDefault("auto_deposit.monero.priority", 0)
 
 	// Read from environment variables
 	viper.SetEnvPrefix("NEAR_SWAP")

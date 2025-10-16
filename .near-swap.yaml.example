@@ -56,6 +56,32 @@ auto_deposit:
     # Transaction fee rate in sat/vB (optional, uses default if not set)
     # fee_rate: 1
 
+  # Monero configuration
+  monero:
+    # Enable auto-deposit for Monero (default: false)
+    enabled: false
+
+    # monero-wallet-rpc host (default: 127.0.0.1)
+    host: "127.0.0.1"
+
+    # monero-wallet-rpc port (default: 18082)
+    port: 18082
+
+    # RPC username (if authentication is enabled)
+    # username: "user"
+
+    # RPC password (if authentication is enabled)
+    # password: "pass"
+
+    # Account index to use (default: 0)
+    account_index: 0
+
+    # Transaction priority (0=default, 1=unimportant, 2=normal, 3=elevated, 4=priority)
+    priority: 0
+
+    # Unlock time in blocks (0=default, transaction spendable after 10 blocks)
+    # unlock_time: 0
+
   # Ethereum configuration (planned)
   # ethereum:
   #   enabled: false

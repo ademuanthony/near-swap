@@ -98,6 +98,93 @@ The CLI will:
 6. ✓ Send the Bitcoin transaction
 7. ✓ Display transaction ID
 
+## Auto-Deposit Setup (Monero)
+
+### Prerequisites
+
+1. **Monero wallet-rpc installed**
+   ```bash
+   # Check if monero-wallet-rpc is accessible
+   which monero-wallet-rpc
+   ```
+
+2. **Wallet with sufficient unlocked balance**
+   - Funds must be confirmed for at least 10 blocks to be spendable
+
+### Configuration
+
+Add to your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  monero:
+    enabled: true
+    host: "127.0.0.1"              # RPC host (default: 127.0.0.1)
+    port: 18082                    # RPC port (default: 18082)
+    username: "user"               # Optional: RPC username
+    password: "pass"               # Optional: RPC password
+    account_index: 0               # Optional: account index (default: 0)
+    priority: 0                    # Optional: priority 0-4 (0=default)
+    unlock_time: 0                 # Optional: unlock time in blocks
+```
+
+### Starting monero-wallet-rpc
+
+Before using auto-deposit, start monero-wallet-rpc with your wallet:
+
+```bash
+# Basic usage (no authentication)
+monero-wallet-rpc \
+  --rpc-bind-port 18082 \
+  --wallet-file /path/to/your/wallet \
+  --password yourwalletpassword \
+  --daemon-address node.moneroworld.com:18089
+
+# With RPC authentication (recommended)
+monero-wallet-rpc \
+  --rpc-bind-port 18082 \
+  --wallet-file /path/to/your/wallet \
+  --password yourwalletpassword \
+  --rpc-login user:pass \
+  --daemon-address node.moneroworld.com:18089
+
+# For testnet
+monero-wallet-rpc \
+  --rpc-bind-port 18082 \
+  --wallet-file /path/to/your/wallet \
+  --password yourwalletpassword \
+  --testnet \
+  --daemon-address stagenet.community.rino.io:38081
+```
+
+### Using Auto-Deposit
+
+```bash
+./near-swap swap 0.5 XMR to USDC \
+  --from-chain xmr \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-xmr-address> \
+  --auto-deposit
+```
+
+The CLI will:
+1. ✓ Generate a swap quote
+2. ✓ Show deposit details
+3. ✓ Verify monero-wallet-rpc connectivity
+4. ✓ Check wallet unlocked balance
+5. ✓ Ask for confirmation
+6. ✓ Send the Monero transaction
+7. ✓ Display transaction hash
+
+### Important Notes
+
+- **Unlocked Balance**: Only unlocked funds can be spent. New funds need 10 confirmations (~20 minutes).
+- **Transaction Priority**: Higher priority (1-4) means higher fees but faster confirmation.
+- **RPC Security**: Use authentication (username/password) when exposing RPC to network.
+- **Wallet Must Be Open**: monero-wallet-rpc must be running with your wallet loaded.
+
 ## Environment Variables
 
 Alternative to config file:
@@ -129,6 +216,7 @@ NEAR_SWAP_JWT_TOKEN=your-token-here
 
 Currently supported:
 - ✅ **Bitcoin (BTC)** - via bitcoin-cli
+- ✅ **Monero (XMR)** - via monero-wallet-rpc
 
 Coming soon:
 - 🔄 Ethereum (ETH) - via web3/RPC
@@ -172,6 +260,21 @@ Expected output: Swap quote with deposit address
 
 Expected output: Quote → Deposit confirmation → Transaction sent
 
+### 4. Test Monero Auto-Deposit (if configured)
+
+```bash
+# Test with small amount first!
+./near-swap swap 0.1 XMR to USDC \
+  --from-chain xmr \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-xmr-address> \
+  --auto-deposit \
+  --verbose
+```
+
+Expected output: Quote → Deposit confirmation → Transaction sent
+
 ## Common Issues
 
 ### Bitcoin-cli not found
@@ -205,6 +308,50 @@ bitcoin-cli listwallets
 auto_deposit:
   bitcoin:
     wallet: "your-wallet-name"
+```
+
+### Monero-wallet-rpc not accessible
+
+```bash
+# Check if monero-wallet-rpc is running
+curl http://127.0.0.1:18082/json_rpc \
+  -d '{"jsonrpc":"2.0","id":"0","method":"get_version"}' \
+  -H 'Content-Type: application/json'
+
+# If using authentication, add credentials:
+curl -u user:pass http://127.0.0.1:18082/json_rpc \
+  -d '{"jsonrpc":"2.0","id":"0","method":"get_version"}' \
+  -H 'Content-Type: application/json'
+
+# Start monero-wallet-rpc if not running
+monero-wallet-rpc \
+  --rpc-bind-port 18082 \
+  --wallet-file /path/to/wallet \
+  --password yourpassword
+```
+
+### Monero insufficient balance
+
+```bash
+# The issue might be that funds are not yet unlocked
+# Monero requires 10 confirmations before funds are spendable
+# Wait for confirmations and try again
+
+# You can check your balance with:
+curl http://127.0.0.1:18082/json_rpc \
+  -d '{"jsonrpc":"2.0","id":"0","method":"get_balance","params":{"account_index":0}}' \
+  -H 'Content-Type: application/json'
+# Look at "unlocked_balance" field
+```
+
+### Monero RPC authentication errors
+
+```bash
+# If you set up RPC authentication, update your config:
+auto_deposit:
+  monero:
+    username: "your-rpc-username"
+    password: "your-rpc-password"
 ```
 
 ## Support

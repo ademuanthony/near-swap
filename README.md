@@ -155,6 +155,7 @@ The CLI supports automatically sending your deposit for supported blockchains:
 
 ### Supported Blockchains
 - **Bitcoin** (BTC) - via `bitcoin-cli`
+- **Monero** (XMR) - via `monero-wallet-rpc`
 - More chains coming soon!
 
 ### Setup Auto-Deposit for Bitcoin
@@ -189,6 +190,48 @@ The CLI will:
 - Confirm the deposit with you
 - Send the transaction
 - Display the transaction ID
+
+### Setup Auto-Deposit for Monero
+
+1. Ensure `monero-wallet-rpc` is installed and running
+2. Enable auto-deposit in your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  monero:
+    enabled: true
+    host: "127.0.0.1"      # RPC host
+    port: 18082            # RPC port (default: 18082)
+    username: "user"       # Optional: RPC username
+    password: "pass"       # Optional: RPC password
+    account_index: 0       # Optional: account index
+    priority: 0            # Optional: tx priority (0-4)
+```
+
+3. Start monero-wallet-rpc with your wallet:
+
+```bash
+monero-wallet-rpc --rpc-bind-port 18082 --wallet-file /path/to/wallet --password yourpassword
+```
+
+4. Use the `--auto-deposit` flag:
+
+```bash
+near-swap swap 0.1 XMR to USDC \
+  --from-chain xmr \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-xmr-address> \
+  --auto-deposit
+```
+
+The CLI will:
+- Verify monero-wallet-rpc connectivity
+- Check your wallet balance
+- Confirm the deposit with you
+- Send the transaction
+- Display the transaction hash
 
 ## How It Works
 
@@ -307,6 +350,8 @@ near-swap swap 1 SOL to USDC \
 
 ### Auto-deposit errors
 
+**Bitcoin errors:**
+
 **"bitcoin-cli not accessible"**:
 - Ensure `bitcoin-cli` is installed and in your PATH
 - Verify Bitcoin Core is running
@@ -316,9 +361,24 @@ near-swap swap 1 SOL to USDC \
 - Check your Bitcoin wallet balance: `bitcoin-cli getbalance`
 - Ensure you have enough for the amount + transaction fees
 
+**Monero errors:**
+
+**"monero-wallet-rpc not accessible"**:
+- Ensure `monero-wallet-rpc` is running
+- Verify the host and port in your configuration
+- Check RPC authentication credentials if enabled
+- Test connectivity: `curl http://127.0.0.1:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_version"}' -H 'Content-Type: application/json'`
+
+**"insufficient balance"**:
+- Check your Monero wallet unlocked balance (funds must be unlocked to spend)
+- Ensure you have enough XMR for the amount + transaction fees
+- Note: Monero has a 10-block confirmation requirement before funds are spendable
+
 **"auto-deposit not enabled"**:
 - Check your `.near-swap.yaml` configuration
-- Ensure `auto_deposit.enabled: true` and `auto_deposit.bitcoin.enabled: true`
+- Ensure `auto_deposit.enabled: true` and the respective chain is enabled
+- For Bitcoin: `auto_deposit.bitcoin.enabled: true`
+- For Monero: `auto_deposit.monero.enabled: true`
 
 ### Swap not completing
 

@@ -39,6 +39,8 @@ func (m *Manager) IsEnabledForChain(chain string) bool {
 	switch chain {
 	case "btc", "bitcoin":
 		return m.config.Bitcoin.Enabled
+	case "xmr", "monero":
+		return m.config.Monero.Enabled
 	// Add more chains here as they're implemented
 	default:
 		return false
@@ -59,6 +61,8 @@ func (m *Manager) SendDeposit(chain, address, amount string) (string, error) {
 	switch chain {
 	case "btc", "bitcoin":
 		return m.sendBitcoinDeposit(address, amount)
+	case "xmr", "monero":
+		return m.sendMoneroDeposit(address, amount)
 	// Add more chains here as they're implemented
 	default:
 		return "", fmt.Errorf("auto-deposit not supported for chain: %s", chain)
@@ -71,12 +75,22 @@ func (m *Manager) sendBitcoinDeposit(address, amount string) (string, error) {
 	return depositor.SendDeposit(address, amount)
 }
 
+// sendMoneroDeposit sends a Monero deposit
+func (m *Manager) sendMoneroDeposit(address, amount string) (string, error) {
+	depositor := NewMoneroDepositor(m.config.Monero)
+	return depositor.SendDeposit(address, amount)
+}
+
 // GetSupportedChains returns a list of chains that support auto-deposit
 func (m *Manager) GetSupportedChains() []string {
 	supported := make([]string, 0)
 
 	if m.config.Bitcoin.Enabled {
 		supported = append(supported, "bitcoin")
+	}
+
+	if m.config.Monero.Enabled {
+		supported = append(supported, "monero")
 	}
 
 	// Add more chains as they're implemented

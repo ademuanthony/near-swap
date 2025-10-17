@@ -156,6 +156,7 @@ The CLI supports automatically sending your deposit for supported blockchains:
 ### Supported Blockchains
 - **Bitcoin** (BTC) - via `bitcoin-cli`
 - **Monero** (XMR) - via `monero-wallet-rpc`
+- **Zcash** (ZEC) - via `zcash-cli`
 - More chains coming soon!
 
 ### Setup Auto-Deposit for Bitcoin
@@ -232,6 +233,38 @@ The CLI will:
 - Confirm the deposit with you
 - Send the transaction
 - Display the transaction hash
+
+### Setup Auto-Deposit for Zcash
+
+1. Ensure `zcash-cli` is installed and configured
+2. Enable auto-deposit in your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  zcash:
+    enabled: true
+    cli_path: "zcash-cli"    # Path to zcash-cli (default uses PATH)
+    cli_args: []             # Optional: custom args like ["-testnet"]
+```
+
+3. Use the `--auto-deposit` flag:
+
+```bash
+near-swap swap 0.5 ZEC to USDC \
+  --from-chain zec \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-zec-address> \
+  --auto-deposit
+```
+
+The CLI will:
+- Verify zcash-cli connectivity
+- Check your wallet balance
+- Confirm the deposit with you
+- Send the transaction
+- Display the transaction ID
 
 ## How It Works
 
@@ -374,11 +407,24 @@ near-swap swap 1 SOL to USDC \
 - Ensure you have enough XMR for the amount + transaction fees
 - Note: Monero has a 10-block confirmation requirement before funds are spendable
 
+**Zcash errors:**
+
+**"zcash-cli not accessible"**:
+- Ensure `zcash-cli` is installed and in your PATH
+- Verify Zcash daemon is running
+- Check RPC credentials if using authentication
+- Test with: `zcash-cli getblockchaininfo`
+
+**"insufficient balance"**:
+- Check your Zcash wallet balance: `zcash-cli getbalance`
+- Ensure you have enough for the amount + transaction fees
+
 **"auto-deposit not enabled"**:
 - Check your `.near-swap.yaml` configuration
 - Ensure `auto_deposit.enabled: true` and the respective chain is enabled
 - For Bitcoin: `auto_deposit.bitcoin.enabled: true`
 - For Monero: `auto_deposit.monero.enabled: true`
+- For Zcash: `auto_deposit.zcash.enabled: true`
 
 ### Swap not completing
 

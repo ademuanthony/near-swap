@@ -41,6 +41,8 @@ func (m *Manager) IsEnabledForChain(chain string) bool {
 		return m.config.Bitcoin.Enabled
 	case "xmr", "monero":
 		return m.config.Monero.Enabled
+	case "zec", "zcash":
+		return m.config.Zcash.Enabled
 	// Add more chains here as they're implemented
 	default:
 		return false
@@ -63,6 +65,8 @@ func (m *Manager) SendDeposit(chain, address, amount string) (string, error) {
 		return m.sendBitcoinDeposit(address, amount)
 	case "xmr", "monero":
 		return m.sendMoneroDeposit(address, amount)
+	case "zec", "zcash":
+		return m.sendZcashDeposit(address, amount)
 	// Add more chains here as they're implemented
 	default:
 		return "", fmt.Errorf("auto-deposit not supported for chain: %s", chain)
@@ -81,6 +85,12 @@ func (m *Manager) sendMoneroDeposit(address, amount string) (string, error) {
 	return depositor.SendDeposit(address, amount)
 }
 
+// sendZcashDeposit sends a Zcash deposit
+func (m *Manager) sendZcashDeposit(address, amount string) (string, error) {
+	depositor := NewZcashDepositor(m.config.Zcash)
+	return depositor.SendDeposit(address, amount)
+}
+
 // GetSupportedChains returns a list of chains that support auto-deposit
 func (m *Manager) GetSupportedChains() []string {
 	supported := make([]string, 0)
@@ -91,6 +101,10 @@ func (m *Manager) GetSupportedChains() []string {
 
 	if m.config.Monero.Enabled {
 		supported = append(supported, "monero")
+	}
+
+	if m.config.Zcash.Enabled {
+		supported = append(supported, "zcash")
 	}
 
 	// Add more chains as they're implemented

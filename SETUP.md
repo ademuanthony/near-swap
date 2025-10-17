@@ -185,6 +185,55 @@ The CLI will:
 - **RPC Security**: Use authentication (username/password) when exposing RPC to network.
 - **Wallet Must Be Open**: monero-wallet-rpc must be running with your wallet loaded.
 
+## Auto-Deposit Setup (Zcash)
+
+### Prerequisites
+
+1. **Zcash CLI installed and running**
+   ```bash
+   # Check if zcash-cli is accessible
+   zcash-cli getblockchaininfo
+   ```
+
+2. **Wallet with sufficient balance**
+   ```bash
+   # Check balance
+   zcash-cli getbalance
+   ```
+
+### Configuration
+
+Add to your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  zcash:
+    enabled: true
+    cli_path: "zcash-cli"          # Path to zcash-cli
+    cli_args: []                   # Optional: custom args like ["-testnet"]
+```
+
+### Using Auto-Deposit
+
+```bash
+./near-swap swap 0.5 ZEC to USDC \
+  --from-chain zec \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-zec-address> \
+  --auto-deposit
+```
+
+The CLI will:
+1. ✓ Generate a swap quote
+2. ✓ Show deposit details
+3. ✓ Verify zcash-cli connectivity
+4. ✓ Check wallet balance
+5. ✓ Ask for confirmation
+6. ✓ Send the Zcash transaction
+7. ✓ Display transaction ID
+
 ## Environment Variables
 
 Alternative to config file:
@@ -217,6 +266,7 @@ NEAR_SWAP_JWT_TOKEN=your-token-here
 Currently supported:
 - ✅ **Bitcoin (BTC)** - via bitcoin-cli
 - ✅ **Monero (XMR)** - via monero-wallet-rpc
+- ✅ **Zcash (ZEC)** - via zcash-cli
 
 Coming soon:
 - 🔄 Ethereum (ETH) - via web3/RPC
@@ -269,6 +319,21 @@ Expected output: Quote → Deposit confirmation → Transaction sent
   --to-chain near \
   --recipient your.near \
   --refund-to <your-xmr-address> \
+  --auto-deposit \
+  --verbose
+```
+
+Expected output: Quote → Deposit confirmation → Transaction sent
+
+### 5. Test Zcash Auto-Deposit (if configured)
+
+```bash
+# Test with small amount first!
+./near-swap swap 0.1 ZEC to USDC \
+  --from-chain zec \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to <your-zec-address> \
   --auto-deposit \
   --verbose
 ```
@@ -352,6 +417,40 @@ auto_deposit:
   monero:
     username: "your-rpc-username"
     password: "your-rpc-password"
+```
+
+### Zcash-cli not found
+
+```bash
+# Check if zcash-cli is in PATH
+which zcash-cli
+
+# If not, specify full path in config
+auto_deposit:
+  zcash:
+    cli_path: "/usr/local/bin/zcash-cli"
+```
+
+### Zcash authentication errors
+
+```bash
+# If using authentication, add to cli_args
+auto_deposit:
+  zcash:
+    cli_args: ["-rpcuser=youruser", "-rpcpassword=yourpass"]
+```
+
+### Zcash daemon not running
+
+```bash
+# Check if zcashd is running
+zcash-cli getblockchaininfo
+
+# If not, start the daemon
+zcashd -daemon
+
+# Wait for sync to complete (check with)
+zcash-cli getblockchaininfo | grep blocks
 ```
 
 ## Support

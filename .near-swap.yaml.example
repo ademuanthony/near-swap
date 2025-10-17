@@ -82,6 +82,18 @@ auto_deposit:
     # Unlock time in blocks (0=default, transaction spendable after 10 blocks)
     # unlock_time: 0
 
+  # Zcash configuration
+  zcash:
+    # Enable auto-deposit for Zcash (default: false)
+    enabled: false
+
+    # Path to zcash-cli (default: uses PATH)
+    cli_path: "zcash-cli"
+
+    # Additional zcash-cli arguments (optional)
+    # Example: ["-testnet", "-rpcuser=user", "-rpcpassword=pass"]
+    cli_args: []
+
   # Ethereum configuration (planned)
   # ethereum:
   #   enabled: false

@@ -28,11 +28,19 @@ type MoneroConfig struct {
 	UnlockTime   uint64 `mapstructure:"unlock_time"`
 }
 
+// ZcashConfig holds Zcash-specific configuration
+type ZcashConfig struct {
+	Enabled  bool     `mapstructure:"enabled"`
+	CLIPath  string   `mapstructure:"cli_path"`
+	CLIArgs  []string `mapstructure:"cli_args"`
+}
+
 // AutoDepositConfig holds auto-deposit configuration
 type AutoDepositConfig struct {
 	Enabled bool          `mapstructure:"enabled"`
 	Bitcoin BitcoinConfig `mapstructure:"bitcoin"`
 	Monero  MoneroConfig  `mapstructure:"monero"`
+	Zcash   ZcashConfig   `mapstructure:"zcash"`
 }
 
 // Config holds the application configuration
@@ -73,6 +81,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("auto_deposit.monero.port", 18082)
 	viper.SetDefault("auto_deposit.monero.account_index", 0)
 	viper.SetDefault("auto_deposit.monero.priority", 0)
+	viper.SetDefault("auto_deposit.zcash.enabled", false)
+	viper.SetDefault("auto_deposit.zcash.cli_path", "zcash-cli")
 
 	// Read from environment variables
 	viper.SetEnvPrefix("NEAR_SWAP")

@@ -50,6 +50,16 @@ type EVMNetwork struct {
 	GasLimit   *uint64 `mapstructure:"gas_limit"`   // Optional: max gas for transaction
 }
 
+// SolanaConfig holds Solana-specific configuration for auto-deposit
+type SolanaConfig struct {
+	Enabled     bool   `mapstructure:"enabled"`
+	RPCUrl      string `mapstructure:"rpc_url"`
+	WSUrl       string `mapstructure:"ws_url"`        // Optional: WebSocket URL
+	PrivateKey  string `mapstructure:"private_key"`   // Base58 encoded private key
+	Commitment  string `mapstructure:"commitment"`    // Commitment level: finalized, confirmed, processed
+	SkipPreflight bool `mapstructure:"skip_preflight"` // Skip preflight transaction checks
+}
+
 // AutoDepositConfig holds auto-deposit configuration
 type AutoDepositConfig struct {
 	Enabled bool          `mapstructure:"enabled"`
@@ -57,6 +67,7 @@ type AutoDepositConfig struct {
 	Monero  MoneroConfig  `mapstructure:"monero"`
 	Zcash   ZcashConfig   `mapstructure:"zcash"`
 	EVM     EVMConfig     `mapstructure:"evm"`
+	Solana  SolanaConfig  `mapstructure:"solana"`
 }
 
 // Config holds the application configuration
@@ -101,6 +112,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("auto_deposit.zcash.cli_path", "zcash-cli")
 	viper.SetDefault("auto_deposit.evm.enabled", false)
 	viper.SetDefault("auto_deposit.evm.networks", map[string]interface{}{})
+	viper.SetDefault("auto_deposit.solana.enabled", false)
+	viper.SetDefault("auto_deposit.solana.rpc_url", "https://api.mainnet-beta.solana.com")
+	viper.SetDefault("auto_deposit.solana.commitment", "confirmed")
+	viper.SetDefault("auto_deposit.solana.skip_preflight", false)
 
 	// Read from environment variables
 	viper.SetEnvPrefix("NEAR_SWAP")

@@ -153,11 +153,35 @@ auto_deposit:
       #   chain_id: 250
       #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
 
-  # Solana configuration (planned)
-  # solana:
-  #   enabled: false
-  #   keypair_path: "~/.config/solana/id.json"
-  #   rpc_url: "https://api.mainnet-beta.solana.com"
+  # Solana configuration
+  # Supports native SOL and all SPL tokens (USDC, USDT, etc.)
+  solana:
+    # Enable auto-deposit for Solana (default: false)
+    enabled: false
+
+    # Solana RPC endpoint
+    # Free public endpoint (may be slow):
+    rpc_url: "https://api.mainnet-beta.solana.com"
+    # For better performance, use a dedicated RPC provider:
+    # rpc_url: "https://solana-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
+    # rpc_url: "https://rpc.helius.xyz/?api-key=YOUR-API-KEY"
+    # rpc_url: "https://quiknode.pro/YOUR-ENDPOINT"
+
+    # Optional: WebSocket URL for real-time updates
+    # ws_url: "wss://api.mainnet-beta.solana.com"
+
+    # Your wallet's private key (Base58 encoded)
+    # Export from Phantom: Settings > Export Private Key
+    # Or from Solflare, or use solana-keygen CLI
+    # private_key: "YOUR_BASE58_ENCODED_PRIVATE_KEY"
+
+    # Commitment level (default: confirmed)
+    # Options: finalized (~32s, most secure), confirmed (~400ms, recommended), processed (~200ms, fastest)
+    commitment: "confirmed"
+
+    # Skip preflight transaction checks (default: false)
+    # Only enable if you're experiencing issues with transaction simulation
+    # skip_preflight: false
 
 # ============================================================
 # Display Preferences
@@ -214,3 +238,16 @@ max_retries: 3
 #    - ERC20 tokens (USDC, USDT, DAI, etc.)
 #    - Automatic gas estimation
 #    - Multiple networks simultaneously
+#
+# 7. Solana Auto-Deposit supports:
+#    - Native SOL transfers
+#    - SPL token transfers (USDC, USDT, etc.)
+#    - Automatic associated token account creation
+#    - Configurable commitment levels
+#
+# 8. How to get a Solana private key:
+#    - From Phantom: Settings > Export Private Key (Base58 format)
+#    - From Solflare: Settings > Export Private Key
+#    - From CLI: Use the keypair at ~/.config/solana/id.json
+#      To convert to Base58: cat ~/.config/solana/id.json | jq -r '.[0:32] | @base64d | @base58'
+#    - NEVER use your main wallet - create a dedicated wallet for auto-deposit

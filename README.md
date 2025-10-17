@@ -61,14 +61,30 @@ Example configuration:
 jwt_token: "your-jwt-token-here"
 base_url: "https://1click.chaindefuser.com"
 
-# Optional: Configure auto-deposit for Bitcoin
+# Optional: Configure auto-deposit
 auto_deposit:
   enabled: true
+
+  # Bitcoin
   bitcoin:
     enabled: true
     cli_path: "bitcoin-cli"
-    # wallet: "default"
-    # fee_rate: 1
+
+  # Solana
+  solana:
+    enabled: true
+    rpc_url: "https://api.mainnet-beta.solana.com"
+    private_key: "YOUR_BASE58_PRIVATE_KEY"
+    commitment: "confirmed"
+
+  # EVM Networks (Ethereum, BSC, Polygon, etc.)
+  evm:
+    enabled: true
+    networks:
+      ethereum:
+        rpc_url: "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
+        chain_id: 1
+        private_key: "0xYOUR_PRIVATE_KEY"
 ```
 
 ### Obtaining a JWT Token
@@ -160,6 +176,9 @@ The CLI supports automatically sending your deposit for supported blockchains:
 - **EVM Networks** (ETH, BNB, MATIC, etc.) - via JSON-RPC
   - Ethereum, BSC, Polygon, Avalanche, Arbitrum, Optimism, Base, Fantom
   - Supports both native tokens (ETH, BNB, MATIC) and ERC20 tokens (USDC, USDT, etc.)
+- **Solana** (SOL) - via JSON-RPC
+  - Supports native SOL and SPL tokens (USDC, USDT, etc.)
+  - Automatic associated token account creation
 
 ### Setup Auto-Deposit for Bitcoin
 
@@ -359,6 +378,81 @@ The EVM depositor automatically handles ERC20 tokens. It will:
 - Automatically estimate gas for ERC20 transactions
 - Handle tokens with 18 decimals (standard for most ERC20 tokens)
 
+### Setup Auto-Deposit for Solana
+
+The CLI supports auto-deposit for Solana, including both native SOL and SPL tokens (the Solana equivalent of ERC20 tokens).
+
+1. Configure Solana in your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  solana:
+    enabled: true
+    rpc_url: "https://api.mainnet-beta.solana.com"
+    # Or use a dedicated RPC provider for better performance:
+    # rpc_url: "https://solana-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
+    private_key: "YOUR_BASE58_ENCODED_PRIVATE_KEY"
+    commitment: "confirmed"     # Options: finalized, confirmed, processed
+    # skip_preflight: false     # Optional: skip transaction simulation
+```
+
+**Important**:
+- The private key should be Base58 encoded (the standard Solana format)
+- You can export it from Phantom, Solflare, or use `solana-keygen` CLI
+- Never commit your private key to version control
+- Use a dedicated wallet for auto-deposit with limited funds
+
+2. Use the `--auto-deposit` flag for native SOL swaps:
+
+```bash
+# Swap native SOL
+near-swap swap 1 SOL to USDC \
+  --from-chain sol \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to YourSolanaAddress \
+  --auto-deposit
+```
+
+3. For SPL token swaps, the CLI will automatically detect the token type:
+
+**Note**: The CLI will automatically handle SPL tokens when swapping tokens like USDC, USDT, or any other SPL token on Solana.
+
+Example for USDC on Solana:
+
+```bash
+near-swap swap 100 USDC to ETH \
+  --from-chain sol \
+  --to-chain eth \
+  --recipient 0xYourEthAddress \
+  --refund-to YourSolanaAddress \
+  --auto-deposit
+```
+
+The CLI will:
+- Connect to the configured Solana RPC endpoint
+- Detect if the token is native SOL or an SPL token
+- For SPL tokens: Automatically find or create associated token accounts
+- Check your SOL balance (for native transfers) or token balance (for SPL tokens)
+- Estimate transaction fees (typically ~5000 lamports per signature)
+- Confirm the deposit with you
+- Sign and send the transaction
+- Display the transaction signature
+
+**Commitment Levels**:
+- **finalized**: Wait for full confirmation (~32 seconds) - Most secure
+- **confirmed**: Wait for majority confirmation (~400ms) - Recommended
+- **processed**: Immediate (~200ms) - Fastest but less secure
+
+**SPL Token Support**:
+The Solana depositor automatically handles SPL tokens:
+- Queries token decimals from the mint account
+- Checks token balance using the associated token account
+- Creates associated token accounts if they don't exist (at recipient)
+- Uses the Token Program for transfers
+- Supports all standard SPL tokens
+
 ## How It Works
 
 1. **Quote Generation**: The CLI fetches a swap quote from the 1Click API
@@ -429,7 +523,8 @@ near-swap/
 │   │   ├── bitcoin.go          # Bitcoin auto-deposit
 │   │   ├── monero.go           # Monero auto-deposit
 │   │   ├── zcash.go            # Zcash auto-deposit
-│   │   └── evm.go              # EVM auto-deposit (ETH, BSC, Polygon, etc.)
+│   │   ├── evm.go              # EVM auto-deposit (ETH, BSC, Polygon, etc.)
+│   │   └── solana.go           # Solana auto-deposit (SOL, SPL tokens)
 │   └── types/
 │       └── swap.go             # Type definitions
 ├── config/
@@ -445,6 +540,7 @@ near-swap/
 - [github.com/fatih/color](https://github.com/fatih/color) - Terminal colors
 - [github.com/briandowns/spinner](https://github.com/briandowns/spinner) - Progress indicators
 - [github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) - Ethereum client library for EVM support
+- [github.com/gagliardetto/solana-go](https://github.com/gagliardetto/solana-go) - Solana client library for Solana support
 
 ## Troubleshooting
 
@@ -553,6 +649,43 @@ near-swap swap 1 SOL to USDC \
 - For ERC20: Ensure the token contract address is correct
 - Verify you have enough token balance
 - Check if the token has any transfer restrictions
+
+**Solana errors:**
+
+**"failed to connect to RPC endpoint"**:
+- Verify the RPC URL is correct and accessible
+- Check your internet connection
+- For Alchemy/QuickNode, verify your API key is valid
+- Test the RPC endpoint: `curl -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"getVersion"}' YOUR_RPC_URL`
+- Consider using a dedicated RPC provider (Alchemy, QuickNode, Helius) for better performance
+
+**"invalid private key"**:
+- Ensure the private key is Base58 encoded (Solana standard format)
+- Export from wallet: Phantom (Settings > Export Private Key) or Solflare
+- From CLI: `solana-keygen pubkey /path/to/keypair.json` to verify
+- Private key should be a long Base58 string (not JSON array format)
+
+**"insufficient balance"** or **"insufficient token balance"**:
+- For native SOL: Check your SOL balance
+- Ensure you have enough for both the transfer AND transaction fees (~0.000005 SOL per signature)
+- For SPL tokens: Check your token balance using `spl-token accounts`
+- You need SOL for fees even when sending SPL tokens
+
+**"failed to get token decimals"** or **"invalid mint account"**:
+- Verify the token mint address is correct
+- Ensure you're using the correct network (mainnet vs devnet)
+- Check if the token exists: `spl-token display <mint-address>`
+
+**"transaction simulation failed"**:
+- This usually indicates the transaction would fail on-chain
+- Check if you have enough balance for both amount and fees
+- For SPL tokens: Ensure the recipient's associated token account can be created
+- Try setting `skip_preflight: true` in config (not recommended for production)
+
+**"blockhash not found"**:
+- Network congestion or RPC node issues
+- Retry the transaction
+- Consider using a different RPC endpoint
 
 ### Swap not completing
 

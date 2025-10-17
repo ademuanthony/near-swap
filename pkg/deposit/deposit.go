@@ -51,6 +51,8 @@ func (m *Manager) IsEnabledForChain(chain string) bool {
 		networkName := m.getEVMNetworkName(chain)
 		_, exists := m.config.EVM.Networks[networkName]
 		return exists
+	case "sol", "solana":
+		return m.config.Solana.Enabled
 	// Add more chains here as they're implemented
 	default:
 		return false
@@ -77,6 +79,8 @@ func (m *Manager) SendDeposit(chain, address, amount string) (string, error) {
 		return m.sendZcashDeposit(address, amount)
 	case "eth", "ethereum", "bsc", "bnb", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
 		return m.sendEVMDeposit(chain, address, amount)
+	case "sol", "solana":
+		return m.sendSolanaDeposit(address, amount)
 	// Add more chains here as they're implemented
 	default:
 		return "", fmt.Errorf("auto-deposit not supported for chain: %s", chain)
@@ -107,6 +111,17 @@ func (m *Manager) sendEVMDeposit(chain, address, amount string) (string, error) 
 	depositor, err := NewEVMDepositor(m.config.EVM, networkName)
 	if err != nil {
 		return "", fmt.Errorf("failed to create EVM depositor: %w", err)
+	}
+	defer depositor.Close()
+
+	return depositor.SendDeposit(address, amount)
+}
+
+// sendSolanaDeposit sends a Solana deposit
+func (m *Manager) sendSolanaDeposit(address, amount string) (string, error) {
+	depositor, err := NewSolanaDepositor(m.config.Solana)
+	if err != nil {
+		return "", fmt.Errorf("failed to create Solana depositor: %w", err)
 	}
 	defer depositor.Close()
 
@@ -158,6 +173,10 @@ func (m *Manager) GetSupportedChains() []string {
 		for network := range m.config.EVM.Networks {
 			supported = append(supported, network)
 		}
+	}
+
+	if m.config.Solana.Enabled {
+		supported = append(supported, "solana")
 	}
 
 	// Add more chains as they're implemented

@@ -43,6 +43,14 @@ func (m *Manager) IsEnabledForChain(chain string) bool {
 		return m.config.Monero.Enabled
 	case "zec", "zcash":
 		return m.config.Zcash.Enabled
+	case "eth", "ethereum", "bsc", "bnb", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
+		// For EVM chains, check if the network is configured
+		if !m.config.EVM.Enabled {
+			return false
+		}
+		networkName := m.getEVMNetworkName(chain)
+		_, exists := m.config.EVM.Networks[networkName]
+		return exists
 	// Add more chains here as they're implemented
 	default:
 		return false
@@ -67,6 +75,8 @@ func (m *Manager) SendDeposit(chain, address, amount string) (string, error) {
 		return m.sendMoneroDeposit(address, amount)
 	case "zec", "zcash":
 		return m.sendZcashDeposit(address, amount)
+	case "eth", "ethereum", "bsc", "bnb", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
+		return m.sendEVMDeposit(chain, address, amount)
 	// Add more chains here as they're implemented
 	default:
 		return "", fmt.Errorf("auto-deposit not supported for chain: %s", chain)
@@ -91,6 +101,43 @@ func (m *Manager) sendZcashDeposit(address, amount string) (string, error) {
 	return depositor.SendDeposit(address, amount)
 }
 
+// sendEVMDeposit sends an EVM deposit
+func (m *Manager) sendEVMDeposit(chain, address, amount string) (string, error) {
+	networkName := m.getEVMNetworkName(chain)
+	depositor, err := NewEVMDepositor(m.config.EVM, networkName)
+	if err != nil {
+		return "", fmt.Errorf("failed to create EVM depositor: %w", err)
+	}
+	defer depositor.Close()
+
+	return depositor.SendDeposit(address, amount)
+}
+
+// getEVMNetworkName maps chain names to network names in config
+func (m *Manager) getEVMNetworkName(chain string) string {
+	chain = strings.ToLower(chain)
+	switch chain {
+	case "eth", "ethereum":
+		return "ethereum"
+	case "bsc", "bnb":
+		return "bsc"
+	case "polygon", "matic":
+		return "polygon"
+	case "avalanche", "avax":
+		return "avalanche"
+	case "arbitrum":
+		return "arbitrum"
+	case "optimism":
+		return "optimism"
+	case "base":
+		return "base"
+	case "fantom":
+		return "fantom"
+	default:
+		return chain
+	}
+}
+
 // GetSupportedChains returns a list of chains that support auto-deposit
 func (m *Manager) GetSupportedChains() []string {
 	supported := make([]string, 0)
@@ -105,6 +152,12 @@ func (m *Manager) GetSupportedChains() []string {
 
 	if m.config.Zcash.Enabled {
 		supported = append(supported, "zcash")
+	}
+
+	if m.config.EVM.Enabled {
+		for network := range m.config.EVM.Networks {
+			supported = append(supported, network)
+		}
 	}
 
 	// Add more chains as they're implemented

@@ -157,7 +157,9 @@ The CLI supports automatically sending your deposit for supported blockchains:
 - **Bitcoin** (BTC) - via `bitcoin-cli`
 - **Monero** (XMR) - via `monero-wallet-rpc`
 - **Zcash** (ZEC) - via `zcash-cli`
-- More chains coming soon!
+- **EVM Networks** (ETH, BNB, MATIC, etc.) - via JSON-RPC
+  - Ethereum, BSC, Polygon, Avalanche, Arbitrum, Optimism, Base, Fantom
+  - Supports both native tokens (ETH, BNB, MATIC) and ERC20 tokens (USDC, USDT, etc.)
 
 ### Setup Auto-Deposit for Bitcoin
 
@@ -266,6 +268,97 @@ The CLI will:
 - Send the transaction
 - Display the transaction ID
 
+### Setup Auto-Deposit for EVM Networks
+
+The CLI supports auto-deposit for all EVM-compatible networks. You can configure multiple networks and send both native tokens (ETH, BNB, MATIC) and ERC20 tokens (USDC, USDT, DAI, etc.).
+
+1. Configure one or more EVM networks in your `.near-swap.yaml`:
+
+```yaml
+auto_deposit:
+  enabled: true
+  evm:
+    enabled: true
+    networks:
+      ethereum:
+        rpc_url: "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
+        chain_id: 1
+        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+        # gas_price: 20000000000  # Optional: wei per gas unit
+        # gas_limit: 100000       # Optional: max gas for transaction
+
+      bsc:
+        rpc_url: "https://bsc-dataseed.binance.org"
+        chain_id: 56
+        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+
+      polygon:
+        rpc_url: "https://polygon-rpc.com"
+        chain_id: 137
+        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+
+      # You can add more networks: arbitrum, optimism, avalanche, base, fantom, etc.
+```
+
+**Important**:
+- Never commit your private key to version control
+- Use environment variables or secure key management for production
+- The private key should be in hex format with or without the '0x' prefix
+
+2. Use the `--auto-deposit` flag for native token swaps:
+
+```bash
+# Swap native ETH
+near-swap swap 0.1 ETH to USDC \
+  --from-chain eth \
+  --to-chain near \
+  --recipient your.near \
+  --refund-to 0xYourEthAddress \
+  --auto-deposit
+```
+
+3. For ERC20 token swaps, specify the token contract address in the deposit address using the format `recipient|tokenContract`:
+
+**Note**: The CLI will automatically detect if a token is ERC20 based on the deposit address format. When swapping ERC20 tokens through the 1Click API, the deposit address may include the token contract information.
+
+Example for USDC on Ethereum:
+
+```bash
+near-swap swap 100 USDC to SOL \
+  --from-chain eth \
+  --to-chain sol \
+  --recipient YourSolanaAddress \
+  --refund-to 0xYourEthAddress \
+  --auto-deposit
+```
+
+The CLI will:
+- Connect to the configured RPC endpoint
+- Detect if the token is native (ETH/BNB/MATIC) or ERC20 based on the deposit address
+- For ERC20: Query the token balance using the `balanceOf` function
+- For native: Check your wallet's ETH/BNB/MATIC balance
+- Estimate gas costs
+- Confirm the deposit with you
+- Sign and send the transaction
+- Display the transaction hash
+
+**Supported EVM Networks**:
+- **Ethereum** (eth, ethereum) - Chain ID: 1
+- **BSC** (bsc, bnb) - Chain ID: 56
+- **Polygon** (polygon, matic) - Chain ID: 137
+- **Avalanche** (avalanche, avax) - Chain ID: 43114
+- **Arbitrum** (arbitrum) - Chain ID: 42161
+- **Optimism** (optimism) - Chain ID: 10
+- **Base** (base) - Chain ID: 8453
+- **Fantom** (fantom) - Chain ID: 250
+
+**ERC20 Token Support**:
+The EVM depositor automatically handles ERC20 tokens. It will:
+- Call the `balanceOf` function to check your token balance
+- Call the `transfer` function to send tokens
+- Automatically estimate gas for ERC20 transactions
+- Handle tokens with 18 decimals (standard for most ERC20 tokens)
+
 ## How It Works
 
 1. **Quote Generation**: The CLI fetches a swap quote from the 1Click API
@@ -333,7 +426,10 @@ near-swap/
 │   │   └── command.go          # Command parser
 │   ├── deposit/
 │   │   ├── deposit.go          # Deposit manager
-│   │   └── bitcoin.go          # Bitcoin auto-deposit
+│   │   ├── bitcoin.go          # Bitcoin auto-deposit
+│   │   ├── monero.go           # Monero auto-deposit
+│   │   ├── zcash.go            # Zcash auto-deposit
+│   │   └── evm.go              # EVM auto-deposit (ETH, BSC, Polygon, etc.)
 │   └── types/
 │       └── swap.go             # Type definitions
 ├── config/
@@ -348,6 +444,7 @@ near-swap/
 - [github.com/spf13/viper](https://github.com/spf13/viper) - Configuration management
 - [github.com/fatih/color](https://github.com/fatih/color) - Terminal colors
 - [github.com/briandowns/spinner](https://github.com/briandowns/spinner) - Progress indicators
+- [github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) - Ethereum client library for EVM support
 
 ## Troubleshooting
 
@@ -425,6 +522,37 @@ near-swap swap 1 SOL to USDC \
 - For Bitcoin: `auto_deposit.bitcoin.enabled: true`
 - For Monero: `auto_deposit.monero.enabled: true`
 - For Zcash: `auto_deposit.zcash.enabled: true`
+- For EVM: `auto_deposit.evm.enabled: true` and the network is configured
+
+**EVM errors:**
+
+**"network X not configured"**:
+- Add the network configuration to your `.near-swap.yaml`
+- Ensure the network name matches (ethereum, bsc, polygon, etc.)
+- Check that all required fields are set: `rpc_url`, `chain_id`, `private_key`
+
+**"failed to connect to RPC endpoint"**:
+- Verify the RPC URL is correct and accessible
+- Check your internet connection
+- For Alchemy/Infura, verify your API key is valid
+- Test the RPC endpoint: `curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' YOUR_RPC_URL`
+
+**"invalid private key"**:
+- Ensure the private key is in hex format
+- It should be 64 characters (32 bytes) without the '0x' prefix, or 66 characters with it
+- Never use a private key from a wallet with significant funds for testing
+
+**"insufficient balance"** or **"insufficient token balance"**:
+- For native tokens: Check your ETH/BNB/MATIC balance
+- For ERC20 tokens: Check your token balance
+- Ensure you have enough for both the transfer amount AND gas fees
+- For ERC20: You need native tokens (ETH/BNB/etc.) for gas, even when sending tokens
+
+**"failed to estimate gas"**:
+- This usually indicates an issue with the transaction
+- For ERC20: Ensure the token contract address is correct
+- Verify you have enough token balance
+- Check if the token has any transfer restrictions
 
 ### Swap not completing
 

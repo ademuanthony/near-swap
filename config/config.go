@@ -35,12 +35,28 @@ type ZcashConfig struct {
 	CLIArgs  []string `mapstructure:"cli_args"`
 }
 
+// EVMConfig holds EVM-specific configuration for auto-deposit
+type EVMConfig struct {
+	Enabled    bool              `mapstructure:"enabled"`
+	Networks   map[string]EVMNetwork `mapstructure:"networks"`
+}
+
+// EVMNetwork holds configuration for a specific EVM network
+type EVMNetwork struct {
+	RPCUrl     string  `mapstructure:"rpc_url"`
+	ChainID    int64   `mapstructure:"chain_id"`
+	PrivateKey string  `mapstructure:"private_key"`
+	GasPrice   *int64  `mapstructure:"gas_price"`   // Optional: wei per gas unit
+	GasLimit   *uint64 `mapstructure:"gas_limit"`   // Optional: max gas for transaction
+}
+
 // AutoDepositConfig holds auto-deposit configuration
 type AutoDepositConfig struct {
 	Enabled bool          `mapstructure:"enabled"`
 	Bitcoin BitcoinConfig `mapstructure:"bitcoin"`
 	Monero  MoneroConfig  `mapstructure:"monero"`
 	Zcash   ZcashConfig   `mapstructure:"zcash"`
+	EVM     EVMConfig     `mapstructure:"evm"`
 }
 
 // Config holds the application configuration
@@ -83,6 +99,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("auto_deposit.monero.priority", 0)
 	viper.SetDefault("auto_deposit.zcash.enabled", false)
 	viper.SetDefault("auto_deposit.zcash.cli_path", "zcash-cli")
+	viper.SetDefault("auto_deposit.evm.enabled", false)
+	viper.SetDefault("auto_deposit.evm.networks", map[string]interface{}{})
 
 	// Read from environment variables
 	viper.SetEnvPrefix("NEAR_SWAP")

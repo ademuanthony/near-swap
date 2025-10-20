@@ -279,8 +279,9 @@ func (e *Executor) executeTrade(plan *TradingPlan, priceInfo *PriceInfo) error {
 		EstimatedOutput: quoteDetails.GetAmountOutFormatted(),
 	}
 
-	// Add execution to plan
-	if err := e.manager.AddExecution(plan.Name, execution); err != nil {
+	// Add execution to plan and get the execution ID
+	executionID, err := e.manager.AddExecution(plan.Name, execution)
+	if err != nil {
 		return fmt.Errorf("failed to record execution: %w", err)
 	}
 
@@ -289,7 +290,7 @@ func (e *Executor) executeTrade(plan *TradingPlan, priceInfo *PriceInfo) error {
 
 	// Auto-deposit is always enabled for plans
 	if e.config.AutoDeposit.Enabled {
-		if err := e.handleAutoDeposit(plan, swapReq, &quoteDetails, &execution); err != nil {
+		if err := e.handleAutoDeposit(plan, executionID, swapReq, &quoteDetails); err != nil {
 			fmt.Printf("[Executor] Auto-deposit failed: %v\n", err)
 			fmt.Printf("[Executor] Please manually deposit %s %s to: %s\n",
 				executeAmountStr, plan.SourceToken, quoteDetails.GetDepositAddress())
@@ -304,7 +305,7 @@ func (e *Executor) executeTrade(plan *TradingPlan, priceInfo *PriceInfo) error {
 }
 
 // handleAutoDeposit attempts to automatically send the deposit
-func (e *Executor) handleAutoDeposit(plan *TradingPlan, swapReq *types.SwapRequest, quoteDetails *oneclick.Quote, execution *Execution) error {
+func (e *Executor) handleAutoDeposit(plan *TradingPlan, executionID string, swapReq *types.SwapRequest, quoteDetails *oneclick.Quote) error {
 	depositMgr := deposit.NewManager(e.config.AutoDeposit)
 
 	if !depositMgr.IsEnabledForChain(plan.SourceChain) {
@@ -315,17 +316,17 @@ func (e *Executor) handleAutoDeposit(plan *TradingPlan, swapReq *types.SwapReque
 	txid, err := depositMgr.SendDeposit(plan.SourceChain, depositAddress, plan.AmountPerTrade)
 	if err != nil {
 		// Update execution with failure
-		e.manager.UpdateExecutionStatus(plan.Name, execution.ID, ExecutionFailed, "", err.Error())
+		e.manager.UpdateExecutionStatus(plan.Name, executionID, ExecutionFailed, "", err.Error())
 		return err
 	}
 
 	fmt.Printf("[Executor] Auto-deposit successful! TX: %s\n", txid)
 
 	// Update execution with transaction hash
-	e.manager.UpdateExecutionStatus(plan.Name, execution.ID, ExecutionDeposited, txid, "")
+	e.manager.UpdateExecutionStatus(plan.Name, executionID, ExecutionDeposited, txid, "")
 
 	// Start background verification for this swap
-	go e.verifySwapCompletion(plan.Name, execution.ID, quoteDetails.GetDepositAddress())
+	go e.verifySwapCompletion(plan.Name, executionID, quoteDetails.GetDepositAddress())
 
 	return nil
 }

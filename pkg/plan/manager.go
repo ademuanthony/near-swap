@@ -194,16 +194,17 @@ func (m *Manager) CancelPlan(name string) error {
 	return m.storage.Update(plan)
 }
 
-// AddExecution records a new execution for a plan
-func (m *Manager) AddExecution(name string, execution Execution) error {
+// AddExecution records a new execution for a plan and returns the execution ID
+func (m *Manager) AddExecution(name string, execution Execution) (string, error) {
 	plan, err := m.storage.Get(name)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Add execution to history
 	execution.ID = uuid.New().String()
 	execution.Timestamp = time.Now()
+	executionID := execution.ID
 	plan.ExecutionHistory = append(plan.ExecutionHistory, execution)
 	plan.ExecutionCount++
 
@@ -244,7 +245,7 @@ func (m *Manager) AddExecution(name string, execution Execution) error {
 
 	plan.LastUpdated = time.Now()
 
-	return m.storage.Update(plan)
+	return executionID, m.storage.Update(plan)
 }
 
 // UpdateExecutionStatus updates the status of a specific execution

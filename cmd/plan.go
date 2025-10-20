@@ -633,28 +633,68 @@ func runPlanHistory(cmd *cobra.Command, args []string) {
 	// Get plan details for token symbols
 	p, _ := manager.GetPlan(planName)
 
-	fmt.Println("\n" + strings.Repeat("=", 100))
-	color.Green("                                EXECUTION HISTORY: %s", planName)
-	fmt.Println(strings.Repeat("=", 100))
+	// Calculate totals
+	var totalSold, totalReceived float64
+	completedCount := 0
 
+	for _, exec := range history {
+		// Sum all amounts sold
+		if amount, err := strconv.ParseFloat(exec.Amount, 64); err == nil {
+			totalSold += amount
+		}
+
+		// Sum amounts received (only for completed with actual output)
+		if exec.Status == plan.ExecutionCompleted && exec.ActualOutput != "" {
+			if amount, err := strconv.ParseFloat(exec.ActualOutput, 64); err == nil {
+				totalReceived += amount
+				completedCount++
+			}
+		}
+	}
+
+	// Display header with summary
+	fmt.Println("\n" + strings.Repeat("=", 120))
+	color.Green("                                EXECUTION HISTORY: %s", planName)
+	fmt.Println(strings.Repeat("=", 120))
+
+	fmt.Printf("\n  Total Transactions:  %s\n", color.CyanString("%d", len(history)))
+	fmt.Printf("  Completed:           %s\n", color.GreenString("%d", completedCount))
+	fmt.Printf("  Total Sold:          %s %s\n", color.YellowString("%.8f", totalSold), p.SourceToken)
+	if totalReceived > 0 {
+		fmt.Printf("  Total Received:      %s %s\n", color.GreenString("%.8f", totalReceived), p.DestToken)
+		avgPrice := totalReceived / totalSold
+		fmt.Printf("  Average Price:       %s %s/%s\n", color.CyanString("%.8f", avgPrice), p.DestToken, p.SourceToken)
+	}
+	fmt.Println()
+
+	// Display transaction table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "\nTIMESTAMP\tAMOUNT\tPRICE\tOUTPUT\tSTATUS\tTX HASH")
-	fmt.Fprintln(w, strings.Repeat("-", 100))
+	fmt.Fprintln(w, "TIMESTAMP\tAMOUNT IN\tAMOUNT OUT\tPRICE\tSTATUS\tDEPOSIT TX\tDEST TX")
+	fmt.Fprintln(w, strings.Repeat("-", 120))
 
 	for _, exec := range history {
 		timestamp := exec.Timestamp.Format("2006-01-02 15:04")
-		amount := fmt.Sprintf("%s %s", exec.Amount, p.SourceToken)
-		price := exec.ActualPrice
-		output := fmt.Sprintf("%s %s", exec.EstimatedOutput, p.DestToken)
-		status := getExecutionStatusColor(exec.Status)
-		txHash := truncateString(exec.TxHash, 16)
+		amountIn := fmt.Sprintf("%s %s", exec.Amount, p.SourceToken)
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			timestamp, amount, price, output, status, txHash)
+		// Show actual output if available, otherwise estimated
+		amountOut := ""
+		if exec.ActualOutput != "" {
+			amountOut = fmt.Sprintf("%s %s", exec.ActualOutput, p.DestToken)
+		} else if exec.EstimatedOutput != "" {
+			amountOut = fmt.Sprintf("~%s %s", exec.EstimatedOutput, p.DestToken)
+		}
+
+		price := exec.ActualPrice
+		status := getExecutionStatusColor(exec.Status)
+		depositTx := truncateString(exec.TxHash, 12)
+		destTx := truncateString(exec.DestinationTxHash, 12)
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			timestamp, amountIn, amountOut, price, status, depositTx, destTx)
 	}
 
 	w.Flush()
-	fmt.Println("\n" + strings.Repeat("=", 100) + "\n")
+	fmt.Println("\n" + strings.Repeat("=", 120) + "\n")
 }
 
 // Helper functions

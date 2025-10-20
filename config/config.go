@@ -82,6 +82,7 @@ type Config struct {
 	AutoConfirm     bool              `mapstructure:"auto_confirm"`
 	Timeout         int               `mapstructure:"timeout"`
 	MaxRetries      int               `mapstructure:"max_retries"`
+	PlanStoragePath string            `mapstructure:"plan_storage_path"`
 }
 
 var globalConfig *Config
@@ -100,6 +101,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("auto_confirm", false)
 	viper.SetDefault("timeout", 30)
 	viper.SetDefault("max_retries", 3)
+	viper.SetDefault("plan_storage_path", "") // Empty means use default (~/.near-swap-plans.json)
 	viper.SetDefault("auto_deposit.enabled", false)
 	viper.SetDefault("auto_deposit.bitcoin.enabled", false)
 	viper.SetDefault("auto_deposit.bitcoin.cli_path", "bitcoin-cli")

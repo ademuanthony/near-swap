@@ -10,6 +10,8 @@ A command-line interface for cross-chain token swaps using the NEAR Intents 1Cli
 - 📊 **Token discovery**: List all supported tokens across chains
 - 🔍 **Status tracking**: Monitor swap execution in real-time
 - 🌐 **Multi-chain support**: Works with multiple blockchains via NEAR Intents
+- 📈 **Trading plans**: Automated price-triggered swaps with execution history
+- 🤖 **Auto-deposit**: Automatically send deposits for Bitcoin, Monero, Zcash, EVM, and Solana
 
 ## Installation
 
@@ -163,6 +165,289 @@ near-swap status <deposit-address> --watch --interval 10
 
 # Get JSON output
 near-swap status <deposit-address> --json
+```
+
+### Trading Plans (Automated Strategies)
+
+Create automated trading plans that execute swaps when specific price conditions are met. Perfect for dollar-cost averaging, limit orders, and automated trading strategies.
+
+**Key Features:**
+- ⏰ **Price-triggered execution**: Automatically execute trades when price crosses a threshold
+- 📊 **Partial fulfillment**: Split large orders into multiple smaller trades
+- 💾 **Persistent state**: Survives restarts and tracks full execution history
+- 🔄 **Auto-deposit required**: All plans use auto-deposit for seamless execution
+- 📈 **Multiple plans**: Run multiple trading strategies simultaneously
+- 📅 **Daily limits**: Control how much to trade per day to spread executions over time
+
+#### Create a Trading Plan
+
+**IMPORTANT**: All trading plans require auto-deposit to be configured for the source blockchain. See [Auto-Deposit Feature](#auto-deposit-feature) section for setup instructions.
+
+```bash
+# Sell 10 BTC when price reaches $150k (1 BTC per trade, max 2 BTC per day)
+near-swap plan create sell-btc-high \
+  --from BTC --to USDC \
+  --from-chain btc --to-chain near \
+  --total 10 --per-trade 1 --per-day 2 \
+  --when-price "above 150000" \
+  --recipient your.near \
+  --refund-to <your-btc-address>
+
+# Buy ETH when price drops below $3000 (max $1000 per day)
+near-swap plan create buy-eth-dip \
+  --from USDC --to ETH \
+  --from-chain near --to-chain eth \
+  --total 5000 --per-trade 500 --per-day 1000 \
+  --when-price "below 3000" \
+  --recipient 0x123... \
+  --description "Buy the dip strategy"
+```
+
+#### List All Plans
+
+```bash
+# List all plans
+near-swap plan list
+
+# List only active plans
+near-swap plan list --status active
+
+# JSON output
+near-swap plan list --json
+```
+
+#### View Plan Details
+
+```bash
+# View detailed information about a plan
+near-swap plan view sell-btc-high
+
+# View as JSON
+near-swap plan view sell-btc-high --json
+```
+
+#### Start/Stop Plans
+
+```bash
+# Activate a plan (changes status to "active")
+near-swap plan start sell-btc-high
+
+# Deactivate a plan (changes status to "paused")
+near-swap plan stop sell-btc-high
+```
+
+#### Run the Daemon
+
+After activating your plans, run the daemon to start monitoring and executing:
+
+```bash
+# Start daemon in foreground (recommended for testing)
+near-swap plan daemon
+
+# Run daemon in background (Linux/Mac)
+nohup near-swap plan daemon > ~/near-swap-daemon.log 2>&1 &
+
+# Check daemon logs
+tail -f ~/near-swap-daemon.log
+```
+
+**The daemon will:**
+- Automatically load all active plans and their execution history
+- Resume from where it stopped (survives restarts)
+- Monitor prices every 30 seconds
+- **Check for plan changes every 60 seconds** (dynamically detects new/started/stopped plans)
+- Execute trades when conditions are met
+- Respect daily limits for each plan
+- Save state after each execution
+- Handle graceful shutdown on Ctrl+C
+
+**Dynamic Plan Management:**
+- The daemon automatically detects new plans created and started
+- No need to restart daemon when adding new plans
+- Start/stop plans in another terminal - daemon adjusts within 60 seconds
+- Perfect for managing multiple strategies without downtime
+
+#### View Execution History
+
+```bash
+# See all executions for a plan
+near-swap plan history sell-btc-high
+
+# JSON output for analysis
+near-swap plan history sell-btc-high --json
+```
+
+#### Delete a Plan
+
+```bash
+# Delete a plan (must be stopped first)
+near-swap plan delete sell-btc-high
+```
+
+#### Price Conditions
+
+Trading plans support three price condition types:
+
+- **`above <price>`**: Execute when price goes above the specified value
+- **`below <price>`**: Execute when price goes below the specified value
+- **`at <price>`**: Execute when price equals the value (±0.5% tolerance)
+
+Examples:
+```bash
+--when-price "above 150000"  # BTC > $150k
+--when-price "below 3000"    # ETH < $3k
+--when-price "at 100"        # SOL ≈ $100
+```
+
+#### How Trading Plans Work
+
+1. **Create**: Define your trading strategy with price conditions and daily limits
+2. **Activate**: Mark the plan as "active" with `near-swap plan start <name>`
+3. **Run Daemon**: Start the monitoring daemon with `near-swap plan daemon`
+4. **Load & Resume**: Daemon loads all active plans and their execution history
+5. **Monitor**: Bot checks current prices every 30 seconds using 1Click API quotes
+6. **Execute**: When conditions are met and daily limit not reached, creates a swap
+7. **Auto-Deposit**: Automatically sends the deposit using configured auto-deposit
+8. **Daily Tracking**: Tracks executed amount per day and resets at midnight
+9. **Repeat**: Continues until the total amount is fully executed
+10. **Persist**: Full history saved - survives restarts
+
+**Daily Limit System:**
+- Each plan has a `--per-day` limit to control trade frequency
+- The bot tracks how much has been executed each day
+- Once the daily limit is reached, no more trades until the next day
+- Daily counter resets at midnight (00:00) local time
+- Useful for spreading large orders over multiple days
+
+**State Persistence:**
+- All plan data stored in `~/.near-swap-plans.json`
+- Execution history tracked for each trade
+- Daily counters and progress saved automatically
+- Daemon resumes from exact state after restart
+- Never loses track of your trades
+
+#### Plan Storage
+
+Plans are stored in `~/.near-swap-plans.json` by default. This file contains:
+- All plan configurations
+- Execution history
+- Current progress and remaining amounts
+
+The storage location can be customized in your `.near-swap.yaml`:
+```yaml
+plan_storage_path: "/custom/path/to/plans.json"
+```
+
+#### Example Strategies
+
+**Dollar-Cost Averaging (DCA):**
+```bash
+# Buy BTC gradually: $100 per trade, max $500 per day
+near-swap plan create dca-btc \
+  --from USDC --to BTC \
+  --from-chain near --to-chain btc \
+  --total 10000 --per-trade 100 --per-day 500 \
+  --when-price "below 50000" \
+  --recipient <btc-address> \
+  --refund-to your.near
+```
+
+**Take Profit (Spread over 5 days):**
+```bash
+# Sell ETH gradually: 0.5 per trade, max 1 ETH per day
+near-swap plan create take-profit-eth \
+  --from ETH --to USDC \
+  --from-chain eth --to-chain near \
+  --total 5 --per-trade 0.5 --per-day 1 \
+  --when-price "above 4000" \
+  --recipient your.near \
+  --refund-to 0xYourEthAddress
+```
+
+**Buy the Dip (Conservative approach):**
+```bash
+# Buy SOL dip: $100 per trade, max $200 per day to avoid FOMO
+near-swap plan create sol-dip \
+  --from USDC --to SOL \
+  --from-chain near --to-chain sol \
+  --total 2000 --per-trade 100 --per-day 200 \
+  --when-price "below 80" \
+  --recipient <sol-address> \
+  --refund-to your.near
+```
+
+**Aggressive Selling (Market downturn):**
+```bash
+# Sell entire position fast: 2 BTC per trade, max 10 BTC per day
+near-swap plan create sell-btc-fast \
+  --from BTC --to USDC \
+  --from-chain btc --to-chain near \
+  --total 50 --per-trade 2 --per-day 10 \
+  --when-price "below 40000" \
+  --recipient your.near \
+  --refund-to <btc-address>
+```
+
+#### Complete Workflow Example
+
+Here's a complete example of setting up and running trading plans:
+
+```bash
+# 1. Configure auto-deposit for Bitcoin in ~/.near-swap.yaml
+# (See Auto-Deposit Feature section below)
+
+# 2. Create your first trading plan
+near-swap plan create btc-dca \
+  --from BTC --to USDC \
+  --from-chain btc --to-chain near \
+  --total 10 --per-trade 0.5 --per-day 1 \
+  --when-price "below 60000" \
+  --recipient your.near \
+  --refund-to <btc-address>
+
+# 3. Create a second plan
+near-swap plan create eth-profit \
+  --from ETH --to USDC \
+  --from-chain eth --to-chain near \
+  --total 5 --per-trade 0.5 --per-day 1 \
+  --when-price "above 4000" \
+  --recipient your.near \
+  --refund-to 0xYourEthAddress
+
+# 4. View all plans
+near-swap plan list
+
+# 5. Activate the plans you want to run
+near-swap plan start btc-dca
+near-swap plan start eth-profit
+
+# 6. Start the daemon to monitor and execute
+near-swap plan daemon
+
+# The daemon will:
+# - Load both active plans
+# - Show their current state and history
+# - Monitor prices every 30 seconds
+# - Check for plan changes every 60 seconds
+# - Execute trades automatically when conditions are met
+# - Save state after each execution
+
+# 7. In another terminal, manage plans dynamically
+near-swap plan view btc-dca
+near-swap plan history eth-profit
+
+# Create and start a new plan while daemon runs
+near-swap plan create sol-trade --from SOL --to USDC ...
+near-swap plan start sol-trade
+# Daemon will detect and start monitoring within 60 seconds!
+
+# Pause a plan temporarily
+near-swap plan stop btc-dca
+# Daemon will stop monitoring it within 60 seconds
+
+# 8. When you're done, stop the daemon with Ctrl+C
+# All state is saved automatically
+# Restart anytime with: near-swap plan daemon
 ```
 
 ## Auto-Deposit Feature
@@ -512,7 +797,8 @@ near-swap/
 │   ├── root.go                 # Root command
 │   ├── swap.go                 # Swap command with auto-deposit
 │   ├── tokens.go               # List tokens command
-│   └── status.go               # Status check command
+│   ├── status.go               # Status check command
+│   └── plan.go                 # Trading plan commands
 ├── pkg/
 │   ├── client/
 │   │   └── oneclick.go         # 1Click API client wrapper
@@ -525,6 +811,12 @@ near-swap/
 │   │   ├── zcash.go            # Zcash auto-deposit
 │   │   ├── evm.go              # EVM auto-deposit (ETH, BSC, Polygon, etc.)
 │   │   └── solana.go           # Solana auto-deposit (SOL, SPL tokens)
+│   ├── plan/
+│   │   ├── types.go            # Trading plan data structures
+│   │   ├── storage.go          # JSON-based persistence
+│   │   ├── manager.go          # Plan CRUD operations
+│   │   ├── pricer.go           # Price monitoring
+│   │   └── executor.go         # Automated execution engine
 │   └── types/
 │       └── swap.go             # Type definitions
 ├── config/

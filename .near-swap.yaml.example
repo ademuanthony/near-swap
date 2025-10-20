@@ -207,6 +207,14 @@ timeout: 30
 max_retries: 3
 
 # ============================================================
+# Trading Plans Configuration
+# ============================================================
+
+# Path to store trading plans (default: ~/.near-swap-plans.json)
+# Leave empty to use the default location
+# plan_storage_path: "/custom/path/to/plans.json"
+
+# ============================================================
 # IMPORTANT SECURITY NOTES
 # ============================================================
 #

@@ -76,7 +76,7 @@ auto_deposit:
   solana:
     enabled: true
     rpc_url: "https://api.mainnet-beta.solana.com"
-    private_key: "YOUR_BASE58_PRIVATE_KEY"
+    private_key_env: "SOLANA_PRIVATE_KEY"  # Environment variable containing private key
     commitment: "confirmed"
 
   # EVM Networks (Ethereum, BSC, Polygon, etc.)
@@ -86,7 +86,13 @@ auto_deposit:
       ethereum:
         rpc_url: "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
         chain_id: 1
-        private_key: "0xYOUR_PRIVATE_KEY"
+        private_key_env: "ETH_PRIVATE_KEY"  # Environment variable containing private key
+```
+
+**Security Note**: Set your private keys as environment variables:
+```bash
+export ETH_PRIVATE_KEY="0xYOUR_PRIVATE_KEY_HERE"
+export SOLANA_PRIVATE_KEY="YOUR_BASE58_ENCODED_PRIVATE_KEY"
 ```
 
 ### Obtaining a JWT Token
@@ -587,27 +593,39 @@ auto_deposit:
       ethereum:
         rpc_url: "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
         chain_id: 1
-        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+        private_key_env: "ETH_PRIVATE_KEY"  # Environment variable name
         # gas_price: 20000000000  # Optional: wei per gas unit
         # gas_limit: 100000       # Optional: max gas for transaction
 
       bsc:
         rpc_url: "https://bsc-dataseed.binance.org"
         chain_id: 56
-        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+        private_key_env: "BSC_PRIVATE_KEY"
 
       polygon:
         rpc_url: "https://polygon-rpc.com"
         chain_id: 137
-        private_key: "0xYOUR_PRIVATE_KEY_HERE"
+        private_key_env: "POLYGON_PRIVATE_KEY"
 
       # You can add more networks: arbitrum, optimism, avalanche, base, fantom, etc.
 ```
 
-**Important**:
-- Never commit your private key to version control
-- Use environment variables or secure key management for production
+**Important - Private Key Security**:
+- Never commit your private keys to version control
+- Always use environment variables for private keys
+- Set them in your shell before running the CLI:
+
+```bash
+# Set environment variables for EVM networks
+export ETH_PRIVATE_KEY="0xYOUR_PRIVATE_KEY_HERE"
+export BSC_PRIVATE_KEY="0xYOUR_PRIVATE_KEY_HERE"
+export POLYGON_PRIVATE_KEY="0xYOUR_PRIVATE_KEY_HERE"
+
+# For persistence, add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+```
+
 - The private key should be in hex format with or without the '0x' prefix
+- Use a dedicated wallet with limited funds for auto-deposit
 
 2. Use the `--auto-deposit` flag for native token swaps:
 
@@ -677,16 +695,27 @@ auto_deposit:
     rpc_url: "https://api.mainnet-beta.solana.com"
     # Or use a dedicated RPC provider for better performance:
     # rpc_url: "https://solana-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
-    private_key: "YOUR_BASE58_ENCODED_PRIVATE_KEY"
+    private_key_env: "SOLANA_PRIVATE_KEY"  # Environment variable name
     commitment: "confirmed"     # Options: finalized, confirmed, processed
     # skip_preflight: false     # Optional: skip transaction simulation
 ```
 
-**Important**:
-- The private key should be Base58 encoded (the standard Solana format)
-- You can export it from Phantom, Solflare, or use `solana-keygen` CLI
-- Never commit your private key to version control
+**Important - Private Key Security**:
+- The private key must be Base58 encoded (the standard Solana format)
+- You can export it from Phantom (Settings > Export Private Key), Solflare, or use `solana-keygen` CLI
+- Never commit your private key to version control - always use environment variables
+- Set the environment variable before running the CLI:
+
+```bash
+# Set Solana private key environment variable
+export SOLANA_PRIVATE_KEY="YOUR_BASE58_ENCODED_PRIVATE_KEY"
+
+# For persistence, add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+echo 'export SOLANA_PRIVATE_KEY="YOUR_BASE58_ENCODED_PRIVATE_KEY"' >> ~/.bashrc
+```
+
 - Use a dedicated wallet for auto-deposit with limited funds
+- The config file only stores the environment variable NAME, not the actual key
 
 2. Use the `--auto-deposit` flag for native SOL swaps:
 
@@ -917,7 +946,8 @@ near-swap swap 1 SOL to USDC \
 **"network X not configured"**:
 - Add the network configuration to your `.near-swap.yaml`
 - Ensure the network name matches (ethereum, bsc, polygon, etc.)
-- Check that all required fields are set: `rpc_url`, `chain_id`, `private_key`
+- Check that all required fields are set: `rpc_url`, `chain_id`, `private_key_env`
+- Ensure the environment variable specified in `private_key_env` is set
 
 **"failed to connect to RPC endpoint"**:
 - Verify the RPC URL is correct and accessible
@@ -926,8 +956,10 @@ near-swap swap 1 SOL to USDC \
 - Test the RPC endpoint: `curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' YOUR_RPC_URL`
 
 **"invalid private key"**:
-- Ensure the private key is in hex format
+- Ensure the environment variable specified in `private_key_env` is set correctly
+- The private key should be in hex format
 - It should be 64 characters (32 bytes) without the '0x' prefix, or 66 characters with it
+- Verify: `echo $ETH_PRIVATE_KEY` (or your configured variable name)
 - Never use a private key from a wallet with significant funds for testing
 
 **"insufficient balance"** or **"insufficient token balance"**:
@@ -952,8 +984,10 @@ near-swap swap 1 SOL to USDC \
 - Consider using a dedicated RPC provider (Alchemy, QuickNode, Helius) for better performance
 
 **"invalid private key"**:
-- Ensure the private key is Base58 encoded (Solana standard format)
+- Ensure the environment variable specified in `private_key_env` is set correctly
+- The private key must be Base58 encoded (Solana standard format)
 - Export from wallet: Phantom (Settings > Export Private Key) or Solflare
+- Verify: `echo $SOLANA_PRIVATE_KEY` (or your configured variable name)
 - From CLI: `solana-keygen pubkey /path/to/keypair.json` to verify
 - Private key should be a long Base58 string (not JSON array format)
 

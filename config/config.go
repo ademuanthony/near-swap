@@ -43,21 +43,23 @@ type EVMConfig struct {
 
 // EVMNetwork holds configuration for a specific EVM network
 type EVMNetwork struct {
-	RPCUrl     string  `mapstructure:"rpc_url"`
-	ChainID    int64   `mapstructure:"chain_id"`
-	PrivateKey string  `mapstructure:"private_key"`
-	GasPrice   *int64  `mapstructure:"gas_price"`   // Optional: wei per gas unit
-	GasLimit   *uint64 `mapstructure:"gas_limit"`   // Optional: max gas for transaction
+	RPCUrl        string  `mapstructure:"rpc_url"`
+	ChainID       int64   `mapstructure:"chain_id"`
+	PrivateKeyEnv string  `mapstructure:"private_key_env"` // Environment variable name containing the private key
+	PrivateKey    string  // Resolved private key value (populated after loading config)
+	GasPrice      *int64  `mapstructure:"gas_price"`   // Optional: wei per gas unit
+	GasLimit      *uint64 `mapstructure:"gas_limit"`   // Optional: max gas for transaction
 }
 
 // SolanaConfig holds Solana-specific configuration for auto-deposit
 type SolanaConfig struct {
-	Enabled     bool   `mapstructure:"enabled"`
-	RPCUrl      string `mapstructure:"rpc_url"`
-	WSUrl       string `mapstructure:"ws_url"`        // Optional: WebSocket URL
-	PrivateKey  string `mapstructure:"private_key"`   // Base58 encoded private key
-	Commitment  string `mapstructure:"commitment"`    // Commitment level: finalized, confirmed, processed
-	SkipPreflight bool `mapstructure:"skip_preflight"` // Skip preflight transaction checks
+	Enabled       bool   `mapstructure:"enabled"`
+	RPCUrl        string `mapstructure:"rpc_url"`
+	WSUrl         string `mapstructure:"ws_url"`             // Optional: WebSocket URL
+	PrivateKeyEnv string `mapstructure:"private_key_env"`    // Environment variable name containing the private key
+	PrivateKey    string                                     // Resolved private key value (populated after loading config)
+	Commitment    string `mapstructure:"commitment"`         // Commitment level: finalized, confirmed, processed
+	SkipPreflight bool   `mapstructure:"skip_preflight"`     // Skip preflight transaction checks
 }
 
 // AutoDepositConfig holds auto-deposit configuration
@@ -86,6 +88,32 @@ type Config struct {
 }
 
 var globalConfig *Config
+
+// resolvePrivateKeys resolves environment variable references to actual private key values
+func resolvePrivateKeys(cfg *Config) error {
+	// Resolve EVM network private keys
+	for networkName, network := range cfg.AutoDeposit.EVM.Networks {
+		if network.PrivateKeyEnv != "" {
+			privateKey := os.Getenv(network.PrivateKeyEnv)
+			if privateKey == "" {
+				return fmt.Errorf("environment variable '%s' for EVM network '%s' is not set or empty", network.PrivateKeyEnv, networkName)
+			}
+			network.PrivateKey = privateKey
+			cfg.AutoDeposit.EVM.Networks[networkName] = network
+		}
+	}
+
+	// Resolve Solana private key
+	if cfg.AutoDeposit.Solana.PrivateKeyEnv != "" {
+		privateKey := os.Getenv(cfg.AutoDeposit.Solana.PrivateKeyEnv)
+		if privateKey == "" {
+			return fmt.Errorf("environment variable '%s' for Solana is not set or empty", cfg.AutoDeposit.Solana.PrivateKeyEnv)
+		}
+		cfg.AutoDeposit.Solana.PrivateKey = privateKey
+	}
+
+	return nil
+}
 
 // Load reads configuration from environment variables and config file
 func Load() (*Config, error) {
@@ -130,6 +158,11 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Resolve private key environment variables
+	if err := resolvePrivateKeys(cfg); err != nil {
+		return nil, fmt.Errorf("failed to resolve private keys: %w", err)
 	}
 
 	// Validate JWT token

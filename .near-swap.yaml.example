@@ -107,7 +107,7 @@ auto_deposit:
       # ethereum:
       #   rpc_url: "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY"
       #   chain_id: 1
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "ETH_PRIVATE_KEY"  # Name of environment variable containing your private key
       #   # gas_price: 20000000000  # Optional: wei per gas (if not set, uses network estimate)
       #   # gas_limit: 100000       # Optional: max gas (if not set, uses estimate)
 
@@ -115,43 +115,43 @@ auto_deposit:
       # bsc:
       #   rpc_url: "https://bsc-dataseed.binance.org"
       #   chain_id: 56
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "BSC_PRIVATE_KEY"
 
       # Polygon (Matic)
       # polygon:
       #   rpc_url: "https://polygon-rpc.com"
       #   chain_id: 137
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "POLYGON_PRIVATE_KEY"
 
       # Avalanche C-Chain
       # avalanche:
       #   rpc_url: "https://api.avax.network/ext/bc/C/rpc"
       #   chain_id: 43114
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "AVAX_PRIVATE_KEY"
 
       # Arbitrum One
       # arbitrum:
       #   rpc_url: "https://arb1.arbitrum.io/rpc"
       #   chain_id: 42161
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "ARBITRUM_PRIVATE_KEY"
 
       # Optimism
       # optimism:
       #   rpc_url: "https://mainnet.optimism.io"
       #   chain_id: 10
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "OPTIMISM_PRIVATE_KEY"
 
       # Base
       # base:
       #   rpc_url: "https://mainnet.base.org"
       #   chain_id: 8453
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "BASE_PRIVATE_KEY"
 
       # Fantom Opera
       # fantom:
       #   rpc_url: "https://rpc.ftm.tools"
       #   chain_id: 250
-      #   private_key: "0xYOUR_PRIVATE_KEY_HERE"
+      #   private_key_env: "FANTOM_PRIVATE_KEY"
 
   # Solana configuration
   # Supports native SOL and all SPL tokens (USDC, USDT, etc.)
@@ -170,10 +170,11 @@ auto_deposit:
     # Optional: WebSocket URL for real-time updates
     # ws_url: "wss://api.mainnet-beta.solana.com"
 
-    # Your wallet's private key (Base58 encoded)
+    # Environment variable containing your wallet's private key (Base58 encoded)
     # Export from Phantom: Settings > Export Private Key
     # Or from Solflare, or use solana-keygen CLI
-    # private_key: "YOUR_BASE58_ENCODED_PRIVATE_KEY"
+    # Then set: export SOLANA_PRIVATE_KEY="YOUR_BASE58_ENCODED_PRIVATE_KEY"
+    # private_key_env: "SOLANA_PRIVATE_KEY"
 
     # Commitment level (default: confirmed)
     # Options: finalized (~32s, most secure), confirmed (~400ms, recommended), processed (~200ms, fastest)
@@ -218,13 +219,24 @@ max_retries: 3
 # IMPORTANT SECURITY NOTES
 # ============================================================
 #
-# 1. NEVER commit this file with real private keys to version control
+# 1. NEVER commit this file with actual configuration to version control
 #    - Add .near-swap.yaml to your .gitignore
 #    - Only commit .near-swap.yaml.example
 #
-# 2. Use environment variables for sensitive data in production:
+# 2. Always use environment variables for sensitive data:
 #    - NEAR_SWAP_JWT_TOKEN for the JWT token
-#    - NEAR_SWAP_AUTO_DEPOSIT_EVM_NETWORKS_ETHEREUM_PRIVATE_KEY for EVM private keys
+#    - Set private keys via environment variables (e.g., ETH_PRIVATE_KEY, SOLANA_PRIVATE_KEY)
+#    - Reference them in config using private_key_env field
+#
+#    Example for bash/zsh:
+#      export ETH_PRIVATE_KEY="0xYOUR_PRIVATE_KEY_HERE"
+#      export SOLANA_PRIVATE_KEY="YOUR_BASE58_ENCODED_PRIVATE_KEY"
+#
+#    Example for fish shell:
+#      set -x ETH_PRIVATE_KEY "0xYOUR_PRIVATE_KEY_HERE"
+#      set -x SOLANA_PRIVATE_KEY "YOUR_BASE58_ENCODED_PRIVATE_KEY"
+#
+#    For persistence, add exports to your shell profile (~/.bashrc, ~/.zshrc, etc.)
 #
 # 3. Keep your private keys secure:
 #    - Use a dedicated wallet for auto-deposit with limited funds

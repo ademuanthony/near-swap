@@ -171,7 +171,7 @@ func runSwap(cmd *cobra.Command, args []string) {
 
 	// Handle auto-deposit if enabled
 	if autoDeposit || cfg.AutoDeposit.Enabled {
-		if err := handleAutoDeposit(cfg, swapReq, &quoteDetails, verbose); err != nil {
+		if err := handleAutoDeposit(cfg, swapReq, &quoteDetails, verbose, noConfirm); err != nil {
 			color.Red("\nAuto-deposit failed: %v", err)
 			color.Yellow("Please send the deposit manually to: %s\n", quoteDetails.GetDepositAddress())
 		}
@@ -184,7 +184,7 @@ func runSwap(cmd *cobra.Command, args []string) {
 	}
 }
 
-func handleAutoDeposit(cfg *config.Config, swapReq *types.SwapRequest, quoteDetails *oneclick.Quote, verbose bool) error {
+func handleAutoDeposit(cfg *config.Config, swapReq *types.SwapRequest, quoteDetails *oneclick.Quote, verbose bool, skipConfirm bool) error {
 	depositMgr := deposit.NewManager(cfg.AutoDeposit)
 
 	// Check if auto-deposit is supported for the source chain
@@ -200,9 +200,11 @@ func handleAutoDeposit(cfg *config.Config, swapReq *types.SwapRequest, quoteDeta
 	fmt.Printf("  Amount:  %s %s\n", amount, swapReq.SourceToken)
 	fmt.Printf("  To:      %s\n", depositAddress)
 
-	// Confirm auto-deposit
-	if !confirmAutoDeposit() {
-		return fmt.Errorf("auto-deposit cancelled by user")
+	// Confirm auto-deposit (skip if --yes flag is set or auto_confirm is enabled in config)
+	if !skipConfirm && !cfg.AutoConfirm {
+		if !confirmAutoDeposit() {
+			return fmt.Errorf("auto-deposit cancelled by user")
+		}
 	}
 
 	// Send the deposit

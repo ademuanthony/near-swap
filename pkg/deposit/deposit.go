@@ -43,7 +43,7 @@ func (m *Manager) IsEnabledForChain(chain string) bool {
 		return m.config.Monero.Enabled
 	case "zec", "zcash":
 		return m.config.Zcash.Enabled
-	case "eth", "ethereum", "bsc", "bnb", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
+	case "eth", "ethereum", "bsc", "bnb", "pol", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
 		// For EVM chains, check if the network is configured
 		if !m.config.EVM.Enabled {
 			return false
@@ -77,7 +77,7 @@ func (m *Manager) SendDeposit(chain, address, amount string) (string, error) {
 		return m.sendMoneroDeposit(address, amount)
 	case "zec", "zcash":
 		return m.sendZcashDeposit(address, amount)
-	case "eth", "ethereum", "bsc", "bnb", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
+	case "eth", "ethereum", "bsc", "bnb", "pol", "polygon", "matic", "avalanche", "avax", "arbitrum", "optimism", "base", "fantom":
 		return m.sendEVMDeposit(chain, address, amount)
 	case "sol", "solana":
 		return m.sendSolanaDeposit(address, amount)
@@ -136,7 +136,7 @@ func (m *Manager) getEVMNetworkName(chain string) string {
 		return "ethereum"
 	case "bsc", "bnb":
 		return "bsc"
-	case "polygon", "matic":
+	case "polygon", "matic", "pol":
 		return "polygon"
 	case "avalanche", "avax":
 		return "avalanche"

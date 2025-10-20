@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	DefaultCheckInterval  = 30 * time.Second // Check prices every 30 seconds
-	MinCheckInterval      = 10 * time.Second // Minimum interval to avoid rate limiting
-	PlanReloadInterval    = 60 * time.Second // Check for plan changes every 60 seconds
+	DefaultCheckInterval     = 30 * time.Second // Check prices every 30 seconds
+	MinCheckInterval         = 10 * time.Second // Minimum interval to avoid rate limiting
+	PlanReloadInterval       = 60 * time.Second // Check for plan changes every 60 seconds
+	SwapVerificationInterval = 45 * time.Second // Check swap status every 45 seconds
 )
 
 // Executor manages the execution of trading plans
@@ -79,6 +80,9 @@ func (e *Executor) Start() error {
 
 	// Start plan reload monitor in background
 	go e.monitorPlanChanges()
+
+	// Start swap verification monitor in background
+	go e.monitorSwapVerification()
 
 	return nil
 }
@@ -320,6 +324,9 @@ func (e *Executor) handleAutoDeposit(plan *TradingPlan, swapReq *types.SwapReque
 	// Update execution with transaction hash
 	e.manager.UpdateExecutionStatus(plan.Name, execution.ID, ExecutionDeposited, txid, "")
 
+	// Start background verification for this swap
+	go e.verifySwapCompletion(plan.Name, execution.ID, quoteDetails.GetDepositAddress())
+
 	return nil
 }
 
@@ -397,4 +404,106 @@ func (e *Executor) reloadPlans() {
 			delete(e.activePlans, name)
 		}
 	}
+}
+
+// monitorSwapVerification periodically checks pending swaps for completion
+func (e *Executor) monitorSwapVerification() {
+	ticker := time.NewTicker(SwapVerificationInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-e.stopChan:
+			return
+		case <-ticker.C:
+			e.verifyPendingSwaps()
+		}
+	}
+}
+
+// verifyPendingSwaps checks all pending executions across all plans
+func (e *Executor) verifyPendingSwaps() {
+	// Get all active plans
+	plans := e.manager.ListPlans()
+
+	for _, plan := range plans {
+		// Check each execution in the plan
+		for i := range plan.ExecutionHistory {
+			exec := &plan.ExecutionHistory[i]
+
+			// Only verify if status is deposited or pending and we have a deposit address
+			if (exec.Status == ExecutionDeposited || exec.Status == ExecutionPending) && exec.DepositAddress != "" {
+				// Check if this is a recent execution (within last 24 hours)
+				if time.Since(exec.Timestamp) < 24*time.Hour {
+					e.checkSwapStatus(plan.Name, exec.ID, exec.DepositAddress)
+				}
+			}
+		}
+	}
+}
+
+// verifySwapCompletion monitors a specific swap until completion (runs in background)
+func (e *Executor) verifySwapCompletion(planName, executionID, depositAddress string) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	maxAttempts := 120 // Monitor for up to 1 hour (120 * 30s)
+	attempts := 0
+
+	for attempts < maxAttempts {
+		select {
+		case <-e.stopChan:
+			return
+		case <-ticker.C:
+			completed := e.checkSwapStatus(planName, executionID, depositAddress)
+			if completed {
+				return
+			}
+			attempts++
+		}
+	}
+}
+
+// checkSwapStatus checks the status of a swap and updates the execution
+// Returns true if the swap is in a terminal state (completed/failed)
+func (e *Executor) checkSwapStatus(planName, executionID, depositAddress string) bool {
+	status, err := e.apiClient.GetSwapStatus(depositAddress)
+	if err != nil {
+		// Silent failure - will retry next time
+		return false
+	}
+
+	swapStatus := status.GetStatus()
+	swapDetails := status.GetSwapDetails()
+
+	// Extract actual output amount
+	actualOutput := ""
+	if swapDetails.HasAmountOutFormatted() {
+		actualOutput = swapDetails.GetAmountOutFormatted()
+	}
+
+	// Extract destination transaction hash
+	destTxHash := ""
+	destTxs := swapDetails.GetDestinationChainTxHashes()
+	if len(destTxs) > 0 {
+		destTxHash = destTxs[0].GetHash()
+	}
+
+	// Update execution with swap status
+	err = e.manager.UpdateExecutionWithSwapStatus(planName, executionID, swapStatus, actualOutput, destTxHash)
+	if err != nil {
+		fmt.Printf("[Verifier] Error updating execution status: %v\n", err)
+		return false
+	}
+
+	// Check if swap is in terminal state
+	if swapStatus == "SUCCESS" || swapStatus == "COMPLETED" {
+		fmt.Printf("[Verifier] ✓ Swap completed for plan '%s'! Received: %s\n", planName, actualOutput)
+		return true
+	} else if swapStatus == "FAILED" || swapStatus == "REFUNDED" {
+		fmt.Printf("[Verifier] ✗ Swap failed for plan '%s': %s\n", planName, swapStatus)
+		return true
+	}
+
+	return false
 }

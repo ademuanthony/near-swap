@@ -72,16 +72,20 @@ type TradingPlan struct {
 
 // Execution represents a single trade execution within a plan
 type Execution struct {
-	ID              string          `json:"id"`               // Unique execution ID
-	Timestamp       time.Time       `json:"timestamp"`        // When execution occurred
-	Amount          string          `json:"amount"`           // Amount traded
-	TriggerPrice    string          `json:"trigger_price"`    // Price at trigger
-	ActualPrice     string          `json:"actual_price"`     // Actual execution price
-	DepositAddress  string          `json:"deposit_address"`  // Deposit address from quote
-	TxHash          string          `json:"tx_hash"`          // Transaction hash
-	Status          ExecutionStatus `json:"status"`           // Execution status
-	ErrorMessage    string          `json:"error_message,omitempty"` // Error if failed
-	EstimatedOutput string          `json:"estimated_output"` // Expected output amount
+	ID                string          `json:"id"`               // Unique execution ID
+	Timestamp         time.Time       `json:"timestamp"`        // When execution occurred
+	Amount            string          `json:"amount"`           // Amount traded
+	TriggerPrice      string          `json:"trigger_price"`    // Price at trigger
+	ActualPrice       string          `json:"actual_price"`     // Actual execution price
+	DepositAddress    string          `json:"deposit_address"`  // Deposit address from quote
+	TxHash            string          `json:"tx_hash"`          // Deposit transaction hash
+	Status            ExecutionStatus `json:"status"`           // Execution status
+	ErrorMessage      string          `json:"error_message,omitempty"` // Error if failed
+	EstimatedOutput   string          `json:"estimated_output"` // Expected output amount
+	ActualOutput      string          `json:"actual_output,omitempty"` // Actual received amount
+	DestinationTxHash string          `json:"destination_tx_hash,omitempty"` // Withdrawal transaction hash
+	CompletionTime    *time.Time      `json:"completion_time,omitempty"` // When swap completed
+	SwapStatus        string          `json:"swap_status,omitempty"` // Latest status from API
 }
 
 // Validate checks if the trading plan has valid parameters

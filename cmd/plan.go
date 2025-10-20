@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -33,6 +34,10 @@ var (
 
 	// Plan list flags
 	planStatusFilter string
+
+	// Plan stats flags
+	statsPage     int
+	statsPageSize int
 )
 
 var planCmd = &cobra.Command{
@@ -157,6 +162,23 @@ Examples:
 	Run:  runPlanHistory,
 }
 
+var planStatsCmd = &cobra.Command{
+	Use:   "stats <name>",
+	Short: "View statistics and transaction history for a plan",
+	Long: `Display comprehensive statistics for a trading plan including:
+- Total number of swaps
+- Total amount deposited
+- Total amount received
+- Recent transaction history with pagination
+
+Examples:
+  near-swap plan stats sell-btc-high
+  near-swap plan stats sell-btc-high --page 2
+  near-swap plan stats sell-btc-high --json`,
+	Args: cobra.ExactArgs(1),
+	Run:  runPlanStats,
+}
+
 var planDaemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "Run daemon to monitor and execute all active plans",
@@ -204,6 +226,7 @@ func init() {
 	planCmd.AddCommand(planStopCmd)
 	planCmd.AddCommand(planDeleteCmd)
 	planCmd.AddCommand(planHistoryCmd)
+	planCmd.AddCommand(planStatsCmd)
 	planCmd.AddCommand(planDaemonCmd)
 
 	// Create command flags
@@ -231,6 +254,10 @@ func init() {
 
 	// List command flags
 	planListCmd.Flags().StringVar(&planStatusFilter, "status", "", "Filter by status (active, paused, completed, cancelled)")
+
+	// Stats command flags
+	planStatsCmd.Flags().IntVar(&statsPage, "page", 1, "Page number for transaction history")
+	planStatsCmd.Flags().IntVar(&statsPageSize, "page-size", 10, "Number of transactions per page")
 }
 
 func runPlanCreate(cmd *cobra.Command, args []string) {
@@ -450,14 +477,30 @@ func runPlanView(cmd *cobra.Command, args []string) {
 		for i := len(p.ExecutionHistory) - 1; i >= start; i-- {
 			exec := p.ExecutionHistory[i]
 			fmt.Printf("\n  [%s] %s\n", exec.Timestamp.Format("2006-01-02 15:04:05"), getExecutionStatusColor(exec.Status))
-			fmt.Printf("    Amount:          %s %s\n", exec.Amount, p.SourceToken)
+			fmt.Printf("    Amount In:       %s %s\n", exec.Amount, p.SourceToken)
 			fmt.Printf("    Price:           %s %s/%s\n", exec.ActualPrice, p.DestToken, p.SourceToken)
-			fmt.Printf("    Expected Output: %s %s\n", exec.EstimatedOutput, p.DestToken)
+
+			// Show actual output if available, otherwise estimated
+			if exec.ActualOutput != "" {
+				fmt.Printf("    Amount Out:      %s %s\n", color.GreenString(exec.ActualOutput), p.DestToken)
+			} else if exec.EstimatedOutput != "" {
+				fmt.Printf("    Expected Output: %s %s\n", exec.EstimatedOutput, p.DestToken)
+			}
+
 			if exec.DepositAddress != "" {
 				fmt.Printf("    Deposit Addr:    %s\n", exec.DepositAddress)
 			}
 			if exec.TxHash != "" {
-				fmt.Printf("    TX Hash:         %s\n", color.CyanString(exec.TxHash))
+				fmt.Printf("    Deposit TX:      %s\n", color.CyanString(exec.TxHash))
+			}
+			if exec.DestinationTxHash != "" {
+				fmt.Printf("    Dest TX:         %s\n", color.CyanString(exec.DestinationTxHash))
+			}
+			if exec.SwapStatus != "" {
+				fmt.Printf("    Swap Status:     %s\n", exec.SwapStatus)
+			}
+			if exec.CompletionTime != nil {
+				fmt.Printf("    Completed At:    %s\n", exec.CompletionTime.Format("2006-01-02 15:04:05"))
 			}
 			if exec.ErrorMessage != "" {
 				fmt.Printf("    Error:           %s\n", color.RedString(exec.ErrorMessage))
@@ -678,6 +721,203 @@ func truncateString(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func runPlanStats(cmd *cobra.Command, args []string) {
+	planName := args[0]
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+
+	// Create plan manager
+	manager, err := plan.NewManager(cfg.PlanStoragePath)
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+
+	// Get plan
+	p, err := manager.GetPlan(planName)
+	if err != nil {
+		printError(err)
+		os.Exit(1)
+	}
+
+	history := p.ExecutionHistory
+
+	if jsonOutput {
+		statsData := calculateStats(p, history)
+		output, _ := json.MarshalIndent(statsData, "", "  ")
+		fmt.Println(string(output))
+		return
+	}
+
+	// Calculate statistics
+	totalSwaps := len(history)
+	completedSwaps := 0
+	var totalDeposited, totalReceived float64
+
+	for _, exec := range history {
+		if exec.Status == plan.ExecutionCompleted {
+			completedSwaps++
+		}
+
+		// Sum deposited amounts
+		if amount, err := strconv.ParseFloat(exec.Amount, 64); err == nil {
+			totalDeposited += amount
+		}
+
+		// Sum received amounts (only for completed swaps with actual output)
+		if exec.ActualOutput != "" {
+			if amount, err := strconv.ParseFloat(exec.ActualOutput, 64); err == nil {
+				totalReceived += amount
+			}
+		}
+	}
+
+	// Display statistics header
+	fmt.Println("\n" + strings.Repeat("=", 100))
+	color.Green("                          PLAN STATISTICS: %s", planName)
+	fmt.Println(strings.Repeat("=", 100))
+
+	fmt.Printf("\n  Plan Status:        %s\n", getStatusColor(p.Status))
+	fmt.Printf("  Trading Pair:       %s -> %s\n", p.SourceToken, p.DestToken)
+	fmt.Println()
+	fmt.Printf("  Total Swaps:        %s\n", color.CyanString("%d", totalSwaps))
+	fmt.Printf("  Completed Swaps:    %s\n", color.GreenString("%d", completedSwaps))
+	fmt.Printf("  Pending Swaps:      %s\n", color.YellowString("%d", totalSwaps-completedSwaps))
+	fmt.Println()
+	fmt.Printf("  Total Deposited:    %s %s\n", color.CyanString("%.8f", totalDeposited), p.SourceToken)
+	if totalReceived > 0 {
+		fmt.Printf("  Total Received:     %s %s\n", color.GreenString("%.8f", totalReceived), p.DestToken)
+	}
+	fmt.Printf("  Remaining:          %s %s\n", p.RemainingAmount, p.SourceToken)
+
+	if totalSwaps == 0 {
+		fmt.Println("\n" + strings.Repeat("=", 100))
+		color.Yellow("\nNo transactions found for this plan.\n")
+		return
+	}
+
+	// Pagination
+	totalPages := (totalSwaps + statsPageSize - 1) / statsPageSize
+	if statsPage < 1 {
+		statsPage = 1
+	}
+	if statsPage > totalPages {
+		statsPage = totalPages
+	}
+
+	startIdx := (statsPage - 1) * statsPageSize
+	endIdx := startIdx + statsPageSize
+	if endIdx > totalSwaps {
+		endIdx = totalSwaps
+	}
+
+	// Display transactions table
+	fmt.Println("\n" + strings.Repeat("=", 100))
+	color.Green("                    RECENT TRANSACTIONS (Page %d of %d)", statsPage, totalPages)
+	fmt.Println(strings.Repeat("=", 100))
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "\nTIMESTAMP\tAMOUNT IN\tAMOUNT OUT\tPRICE\tSTATUS\tTX HASH\tDEST TX")
+	fmt.Fprintln(w, strings.Repeat("-", 100))
+
+	// Show transactions in reverse order (most recent first)
+	for i := len(history) - 1 - startIdx; i >= 0 && i >= len(history)-endIdx; i-- {
+		exec := history[i]
+		timestamp := exec.Timestamp.Format("2006-01-02 15:04")
+		amountIn := fmt.Sprintf("%s %s", exec.Amount, p.SourceToken)
+
+		// Show actual output if available, otherwise estimated
+		amountOut := ""
+		if exec.ActualOutput != "" {
+			amountOut = fmt.Sprintf("%s %s", exec.ActualOutput, p.DestToken)
+		} else if exec.EstimatedOutput != "" {
+			amountOut = fmt.Sprintf("~%s %s", exec.EstimatedOutput, p.DestToken)
+		}
+
+		price := exec.ActualPrice
+		status := getExecutionStatusColor(exec.Status)
+		txHash := truncateString(exec.TxHash, 12)
+		destTx := truncateString(exec.DestinationTxHash, 12)
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			timestamp, amountIn, amountOut, price, status, txHash, destTx)
+	}
+
+	w.Flush()
+	fmt.Println("\n" + strings.Repeat("=", 100))
+
+	// Pagination info
+	if totalPages > 1 {
+		fmt.Printf("\nShowing transactions %d-%d of %d total\n", startIdx+1, endIdx, totalSwaps)
+		if statsPage < totalPages {
+			color.Cyan("To see more transactions, use: near-swap plan stats %s --page %d\n", planName, statsPage+1)
+		}
+		if statsPage > 1 {
+			color.Cyan("To see previous transactions, use: near-swap plan stats %s --page %d\n", planName, statsPage-1)
+		}
+	}
+	fmt.Println()
+}
+
+func calculateStats(p *plan.TradingPlan, history []plan.Execution) map[string]interface{} {
+	totalSwaps := len(history)
+	completedSwaps := 0
+	var totalDeposited, totalReceived float64
+
+	transactions := make([]map[string]interface{}, 0, len(history))
+
+	for _, exec := range history {
+		if exec.Status == plan.ExecutionCompleted {
+			completedSwaps++
+		}
+
+		if amount, err := strconv.ParseFloat(exec.Amount, 64); err == nil {
+			totalDeposited += amount
+		}
+
+		if exec.ActualOutput != "" {
+			if amount, err := strconv.ParseFloat(exec.ActualOutput, 64); err == nil {
+				totalReceived += amount
+			}
+		}
+
+		txData := map[string]interface{}{
+			"id":                  exec.ID,
+			"timestamp":           exec.Timestamp,
+			"amount_in":           exec.Amount,
+			"amount_out":          exec.ActualOutput,
+			"estimated_output":    exec.EstimatedOutput,
+			"price":               exec.ActualPrice,
+			"status":              exec.Status,
+			"deposit_address":     exec.DepositAddress,
+			"tx_hash":             exec.TxHash,
+			"destination_tx_hash": exec.DestinationTxHash,
+			"swap_status":         exec.SwapStatus,
+		}
+		transactions = append(transactions, txData)
+	}
+
+	return map[string]interface{}{
+		"plan_name":        p.Name,
+		"status":           p.Status,
+		"source_token":     p.SourceToken,
+		"dest_token":       p.DestToken,
+		"total_swaps":      totalSwaps,
+		"completed_swaps":  completedSwaps,
+		"pending_swaps":    totalSwaps - completedSwaps,
+		"total_deposited":  fmt.Sprintf("%.8f", totalDeposited),
+		"total_received":   fmt.Sprintf("%.8f", totalReceived),
+		"remaining_amount": p.RemainingAmount,
+		"transactions":     transactions,
+	}
 }
 
 func runPlanDaemon(cmd *cobra.Command, args []string) {

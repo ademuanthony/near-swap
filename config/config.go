@@ -119,7 +119,8 @@ func resolvePrivateKeys(cfg *Config) error {
 func Load() (*Config, error) {
 	viper.SetConfigName(".near-swap")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("$HOME")
+	// viper.AddConfigPath("$HOME")
+	viper.AddConfigPath("./")
 	viper.AddConfigPath(".")
 
 	// Set default values

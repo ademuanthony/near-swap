@@ -316,3 +316,47 @@ func (m *Manager) GetActivePlans() []*TradingPlan {
 func (m *Manager) GetStorage() *Storage {
 	return m.storage
 }
+
+// UpdateExecutionWithSwapStatus updates an execution with swap status details
+func (m *Manager) UpdateExecutionWithSwapStatus(planName, executionID string, swapStatus, actualOutput, destTxHash string) error {
+	plan, err := m.storage.Get(planName)
+	if err != nil {
+		return err
+	}
+
+	// Find and update the execution
+	found := false
+	for i := range plan.ExecutionHistory {
+		if plan.ExecutionHistory[i].ID == executionID {
+			plan.ExecutionHistory[i].SwapStatus = swapStatus
+
+			if actualOutput != "" {
+				plan.ExecutionHistory[i].ActualOutput = actualOutput
+			}
+
+			if destTxHash != "" {
+				plan.ExecutionHistory[i].DestinationTxHash = destTxHash
+			}
+
+			// If status is completed/success, mark execution as completed and set completion time
+			if swapStatus == "SUCCESS" || swapStatus == "COMPLETED" {
+				plan.ExecutionHistory[i].Status = ExecutionCompleted
+				now := time.Now()
+				plan.ExecutionHistory[i].CompletionTime = &now
+			} else if swapStatus == "FAILED" || swapStatus == "REFUNDED" {
+				plan.ExecutionHistory[i].Status = ExecutionFailed
+			}
+
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("execution '%s' not found in plan '%s'", executionID, planName)
+	}
+
+	plan.LastUpdated = time.Now()
+
+	return m.storage.Update(plan)
+}
